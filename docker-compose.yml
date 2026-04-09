@@ -1,0 +1,32 @@
+services:
+  database:
+    image: postgres:latest
+    environment:
+        - POSTGRES_USER=${POSTGRES_USER}
+        - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      # path to db data
+      - dbdata:/var/lib/postgresql/data
+
+  object storage:
+    image: minio/minio:latest
+    container_name: minio
+    environment:
+      - MINIO_USER=${MINIO_ROOT_USER}
+      - MINIO_PASSWORD=${MINIO_PASSWORD}
+    ports:
+      # code API
+      - "9000:9000"
+      # Web-interface
+      - "9001:9001"
+    volumes:
+      - "C:\Users\valee\MinIO\Data:/data"
+      - "C:\Users\valee\MinIO\Config:/root/.minio"
+
+  ingestion-service:
+    # We need to build an image from Dockerfile with this name
+    image: ingestion-service
+
+networks:
+
+

@@ -1,0 +1,4 @@
+# Libraires that are rewuires for the project
+minio
+sqlalchemy
+python-dotenv
