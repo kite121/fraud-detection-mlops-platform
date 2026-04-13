@@ -1,0 +1,8 @@
+# Libraires that are required for the project
+fastapi
+uvicorn
+minio
+sqlalchemy
+python-dotenv
+pandas
+psycopg2-binary
