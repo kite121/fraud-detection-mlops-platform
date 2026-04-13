@@ -6,3 +6,4 @@ sqlalchemy
 python-dotenv
 pandas
 psycopg2-binary
+pydantic-settings
