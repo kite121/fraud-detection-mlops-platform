@@ -1,14 +1,20 @@
-# Import python for running code
-FROM python:latest
+# Python image
+FROM python:3.11-slim
 
-# Settitng working directory to f.e. /app
-WORKDIR ...
+# Select working directory
+WORKDIR /app
 
-COPY . requirements.txt
+# Copy requirements to avoid reinstallations in cale of changes not in requirements.txt
+COPY requirements.txt .
 
+# Install requirements
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY ./ /app
+# Copy the whole project to the working directory
+COPY . .
 
-# command for running application
-CMD []
+# Open FastAPI port
+EXPOSE 8000
+
+# Run Fast API. The main is the file where FastAPI client is created
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
