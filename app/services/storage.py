@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from io import BytesIO
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -86,3 +87,41 @@ def upload_to_storage(
     )
 
     return f"s3://{bucket_name}/{object_key}"
+
+
+def parse_storage_path(storage_path: str) -> tuple[str, str]:
+    """Parses an s3://bucket/key path into bucket and object key."""
+
+    if not storage_path.startswith("s3://"):
+        raise ValueError(
+            "storage_path must start with 's3://'. "
+            f"Received: {storage_path!r}"
+        )
+
+    bucket_and_key = storage_path.removeprefix("s3://")
+    bucket_name, separator, object_key = bucket_and_key.partition("/")
+
+    if not bucket_name or not separator or not object_key:
+        raise ValueError(f"Invalid storage path: {storage_path!r}")
+
+    return bucket_name, object_key
+
+
+def download_object_bytes(storage_path: str) -> bytes:
+    """Downloads one object from MinIO and returns its raw bytes."""
+
+    bucket_name, object_key = parse_storage_path(storage_path)
+    client = _create_minio_client()
+    response = client.get_object(bucket_name, object_key)
+
+    try:
+        return response.read()
+    finally:
+        response.close()
+        response.release_conn()
+
+
+def download_object_to_buffer(storage_path: str) -> BytesIO:
+    """Downloads an object into an in-memory buffer for pandas or similar tools."""
+
+    return BytesIO(download_object_bytes(storage_path))

@@ -4,7 +4,7 @@ import os
 from datetime import UTC, datetime
 
 from dotenv import load_dotenv
-from sqlalchemy import DateTime, Integer, String, create_engine
+from sqlalchemy import DateTime, Integer, String, create_engine, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
@@ -93,5 +93,57 @@ def save_batch_metadata(
     except SQLAlchemyError:
         session.rollback()
         raise
+    finally:
+        session.close()
+
+
+def get_batch_metadata(batch_id: int) -> BatchMetadata:
+    """Returns one uploaded batch by ID so downstream services can reuse it."""
+
+    session_factory = _create_session_factory()
+    session = session_factory()
+
+    try:
+        statement = select(BatchMetadata).where(BatchMetadata.id == batch_id)
+        batch_metadata = session.execute(statement).scalar_one_or_none()
+        if batch_metadata is None:
+            raise LookupError(f"Batch with id={batch_id} was not found.")
+
+        return batch_metadata
+    finally:
+        session.close()
+
+
+def get_latest_batch_metadata(
+    dataset_version: str | None = None,
+    status: str = "uploaded",
+) -> BatchMetadata:
+    """Returns the newest uploaded batch, optionally filtered by dataset version."""
+
+    session_factory = _create_session_factory()
+    session = session_factory()
+
+    try:
+        statement = select(BatchMetadata).where(BatchMetadata.status == status)
+
+        if dataset_version:
+            statement = statement.where(BatchMetadata.dataset_version == dataset_version)
+
+        statement = statement.order_by(
+            BatchMetadata.created_at.desc(),
+            BatchMetadata.id.desc(),
+        )
+
+        batch_metadata = session.execute(statement).scalars().first()
+        if batch_metadata is None:
+            if dataset_version:
+                raise LookupError(
+                    "No uploaded batch was found for "
+                    f"dataset_version={dataset_version!r}."
+                )
+
+            raise LookupError("No uploaded batches were found.")
+
+        return batch_metadata
     finally:
         session.close()
