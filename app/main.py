@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.db import Base, engine, check_db_connection
 from app.api import ingest  # роутер коллеги из задания 8
+from app.models import BatchMetadata
 
 
 @asynccontextmanager

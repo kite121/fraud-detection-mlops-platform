@@ -8,6 +8,12 @@ class Settings(BaseSettings):
     postgres_user: str
     postgres_password: str
 
+    # MinIO
+    minio_endpoint: str
+    minio_root_user: str
+    minio_root_password: str
+    minio_secure: bool = False
+
     @property
     def database_url(self) -> str:
         return (
