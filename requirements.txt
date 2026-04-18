@@ -10,3 +10,5 @@ pydantic-settings
 scikit-learn
 python-multipart
 catboost
+boto3
+mlflow
