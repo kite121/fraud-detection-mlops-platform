@@ -36,7 +36,6 @@ class ModelRegistry(Base):
 
     __tablename__ = "model_registry"
 
-    # --- required fields (from Sprint 2 spec) ---
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     model_version: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     dataset_version: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -51,13 +50,11 @@ class ModelRegistry(Base):
         default=lambda: datetime.now(UTC),
     )
 
-    # --- recommended additional fields ---
     algorithm: Mapped[str | None] = mapped_column(String(100), nullable=True)
     hyperparameters: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON string
     feature_set_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # --- MLflow fields (Sprint 2 MLflow supplement, task 3) ---
     mlflow_run_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     model_uri: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
