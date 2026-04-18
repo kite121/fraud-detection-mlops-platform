@@ -1,12 +1,32 @@
 # Libraires that are required for the project
+
+# Web framework
 fastapi
 uvicorn
+
+# Object storage
 minio
+boto3
+
+# Database
 sqlalchemy
-python-dotenv
-pandas
 psycopg2-binary
+
+# Config / env
+python-dotenv
 pydantic-settings
+
+# Data processing
+pandas
 scikit-learn
-python-multipart
+
+# ML
 catboost
+joblib
+
+# MLflow experiment tracking (Sprint 2)
+mlflow
+
+# FastAPI file upload support
+python-multipart
+
