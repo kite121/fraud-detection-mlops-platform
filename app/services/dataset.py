@@ -60,6 +60,19 @@ class TrainingDatasetMetadata:
     train_positive_rate: float
     validation_positive_rate: float
 
+    def to_logging_metadata(self) -> dict[str, int | float | str | list[str]]:
+        """Returns the compact metadata block most useful for MLflow logging."""
+
+        return {
+            "batch_id": self.batch_id,
+            "dataset_version": self.dataset_version,
+            "train_rows_count": self.train_rows_count,
+            "validation_rows_count": self.validation_rows_count,
+            "train_positive_rate": self.train_positive_rate,
+            "validation_positive_rate": self.validation_positive_rate,
+            "feature_columns": list(self.feature_columns),
+        }
+
 
 @dataclass(slots=True)
 class PreparedTrainingDataset:
@@ -71,6 +84,7 @@ class PreparedTrainingDataset:
     y_validation: pd.Series
     preprocessor: ColumnTransformer
     metadata: TrainingDatasetMetadata
+    logging_metadata: dict[str, int | float | str | list[str]]
     raw_dataframe: pd.DataFrame | None = field(default=None, repr=False)
 
 
@@ -251,5 +265,6 @@ def prepare_training_dataset(
         y_validation=y_validation.reset_index(drop=True),
         preprocessor=preprocessor,
         metadata=metadata,
+        logging_metadata=metadata.to_logging_metadata(),
         raw_dataframe=raw_dataframe if include_raw_dataframe else None,
     )
