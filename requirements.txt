@@ -30,3 +30,5 @@ mlflow
 # FastAPI file upload support
 python-multipart
 
+# Async task queue (Sprint 3)
+celery
