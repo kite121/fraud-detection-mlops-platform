@@ -4,40 +4,17 @@ import os
 from datetime import UTC, datetime
 
 from dotenv import load_dotenv
-from sqlalchemy import DateTime, Integer, String, create_engine, select
+from sqlalchemy import create_engine, select
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
+from app.models import BatchMetadata  # Import from models, not local
 
 load_dotenv()
 
 
-class Base(DeclarativeBase):
-    """Base class for ORM models used by the ingestion service."""
-
-
-class BatchMetadata(Base):
-    """Stores one uploaded batch so the platform can track files per client."""
-
-    __tablename__ = "batch_metadata"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    client_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    dataset_version: Mapped[str] = mapped_column(String(100), nullable=False)
-    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    storage_path: Mapped[str] = mapped_column(String(500), nullable=False)
-    rows_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    status: Mapped[str] = mapped_column(String(50), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=lambda: datetime.now(UTC),
-    )
-
-
 def _build_database_url() -> str:
     """Builds the PostgreSQL connection string from env vars."""
-
     host = os.getenv("POSTGRES_HOST", "localhost")
     port = os.getenv("POSTGRES_PORT", "5432")
     database = os.getenv("POSTGRES_DB", "fraud_platform")
@@ -52,16 +29,8 @@ def _build_database_url() -> str:
 
 def _create_session_factory() -> sessionmaker:
     """Creates a SQLAlchemy session factory for metadata writes."""
-
     engine = create_engine(_build_database_url())
     return sessionmaker(bind=engine)
-
-
-def init_metadata_table() -> None:
-    """Creates the metadata table so the service can run on a fresh database."""
-
-    engine = create_engine(_build_database_url())
-    Base.metadata.create_all(engine)
 
 
 def save_batch_metadata(
@@ -73,7 +42,6 @@ def save_batch_metadata(
     status: str,
 ) -> int:
     """Saves one batch metadata record in PostgreSQL and returns its ID."""
-
     session_factory = _create_session_factory()
     session = session_factory()
 
@@ -99,7 +67,6 @@ def save_batch_metadata(
 
 def get_batch_metadata(batch_id: int) -> BatchMetadata:
     """Returns one uploaded batch by ID so downstream services can reuse it."""
-
     session_factory = _create_session_factory()
     session = session_factory()
 
@@ -119,7 +86,6 @@ def get_latest_batch_metadata(
     status: str = "uploaded",
 ) -> BatchMetadata:
     """Returns the newest uploaded batch, optionally filtered by dataset version."""
-
     session_factory = _create_session_factory()
     session = session_factory()
 

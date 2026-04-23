@@ -12,9 +12,10 @@ from app.db import Base
 
 
 class BatchMetadata(Base):
-    __tablename__ = "metadata"
+    __tablename__ = "batch_metadata"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    client_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     dataset_version: Mapped[str] = mapped_column(String(100), nullable=False)
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
     storage_path: Mapped[str] = mapped_column(String(512), nullable=False)
