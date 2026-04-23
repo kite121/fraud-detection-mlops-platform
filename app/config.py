@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-  
+
     # --- PostgreSQL ---
     postgres_host: str
     postgres_port: int = 5432
@@ -21,7 +21,12 @@ class Settings(BaseSettings):
     mlflow_tracking_uri: str = "http://mlflow:5000"
     mlflow_experiment_name: str = "fraud-detection-training"
     mlflow_artifacts_bucket: str = "mlflow-artifacts"
-    
+
+    # --- Celery / RabbitMQ ---
+    celery_broker_url: str = "amqp://guest:guest@localhost:5672//"
+    celery_result_backend: str = "rpc://"
+    celery_task_always_eager: bool = False
+
     @property
     def database_url(self) -> str:
         return (
