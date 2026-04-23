@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app.db import SessionLocal
 from app.models import TrainingJob
+from app.services.retry import retry_db
 
 
 JOB_STATUS_QUEUED = "queued"
@@ -34,6 +35,7 @@ def _generate_job_id(prefix: str = "train") -> str:
     return f"{prefix}_{uuid4().hex[:12]}"
 
 
+@retry_db
 def create_training_job(
     *,
     batch_id: int | None,
@@ -125,6 +127,17 @@ def mark_job_failed(job_id: str, error_message: str) -> None:
         entry.finished_at = datetime.now(timezone.utc)
         entry.error_message = error_message
         session.commit()
+    finally:
+        session.close()
+
+
+def get_job_by_id(job_id: str) -> TrainingJob:
+    """Returns one training job by its job_id, or raises LookupError if not found."""
+
+    session = SessionLocal()
+
+    try:
+        return _get_job_entry(session, job_id)
     finally:
         session.close()
 
