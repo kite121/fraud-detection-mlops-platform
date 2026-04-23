@@ -171,18 +171,17 @@ def save_model_artifacts(
     )
 
 
-def load_model_from_storage(model_path: str) -> Any:
+def load_artifact_from_storage(artifact_path: str) -> Any:
     """
-    Downloads and deserialises a model from MinIO.
-    Useful for inference service or manual inspection.
+    Downloads and deserialises one joblib artifact from MinIO.
 
     Args:
-        model_path: s3:// path returned by save_model_artifacts().
+        artifact_path: s3:// path returned by save_model_artifacts().
     """
-    if not model_path.startswith("s3://"):
-        raise ValueError(f"Expected s3:// path, got: {model_path!r}")
+    if not artifact_path.startswith("s3://"):
+        raise ValueError(f"Expected s3:// path, got: {artifact_path!r}")
 
-    bucket_and_key = model_path.removeprefix("s3://")
+    bucket_and_key = artifact_path.removeprefix("s3://")
     bucket_name, _, object_key = bucket_and_key.partition("/")
 
     client = _create_minio_client()
@@ -202,3 +201,15 @@ def load_model_from_storage(model_path: str) -> Any:
         return joblib.load(tmp_path)
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+def load_model_from_storage(model_path: str) -> Any:
+    """
+    Downloads and deserialises a model from MinIO.
+    Useful for inference service or manual inspection.
+
+    Args:
+        model_path: s3:// path returned by save_model_artifacts().
+    """
+
+    return load_artifact_from_storage(model_path)
