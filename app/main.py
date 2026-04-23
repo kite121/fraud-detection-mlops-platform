@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.db import Base, engine, check_db_connection
 from app.api import ingest
+from app.api import predict
 from app.api import train                     # нужно для Sprint 2 / Sprint 3
 from app.services.registry import init_registry_table   # создаёт model_registry
 from app.models import BatchMetadata          # может пригодиться, но не обязательно
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Fraud Detection MLOps Platform", lifespan=lifespan)
 
 app.include_router(ingest.router)
+app.include_router(predict.router)
 app.include_router(train.router)
 
 
