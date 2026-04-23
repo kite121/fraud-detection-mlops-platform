@@ -58,3 +58,4 @@ def get_job(job_id: str) -> TrainingJobResponse:
         finished_at=job.finished_at,
         error_message=job.error_message,
     )
+    
