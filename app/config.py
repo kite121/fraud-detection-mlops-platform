@@ -1,19 +1,27 @@
 # This file reads environment variables and provides access to them through the convenient "settings" object
 from pydantic_settings import BaseSettings
 
+
 class Settings(BaseSettings):
+  
+    # --- PostgreSQL ---
     postgres_host: str
     postgres_port: int = 5432
     postgres_db: str
     postgres_user: str
     postgres_password: str
 
-    # MinIO
+    # --- MinIO ---
     minio_endpoint: str
     minio_root_user: str
     minio_root_password: str
     minio_secure: bool = False
 
+    # --- MLflow ---
+    mlflow_tracking_uri: str = "http://mlflow:5000"
+    mlflow_experiment_name: str = "fraud-detection-training"
+    mlflow_artifacts_bucket: str = "mlflow-artifacts"
+    
     @property
     def database_url(self) -> str:
         return (
