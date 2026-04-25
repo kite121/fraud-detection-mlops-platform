@@ -10,6 +10,8 @@ from sqlalchemy import DateTime, Float, Integer, String, Text, create_engine, se
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
+from app.services.tracing import get_tracer
+
 
 load_dotenv()
 
@@ -171,63 +173,63 @@ def register_model_version(
     Returns:
         RegisteredModel dataclass with id, version, status, and paths.
     """
+    tracer = get_tracer(__name__)
     session_factory = _create_session_factory()
     session = session_factory()
 
     try:
-        model_version = _next_model_version(session)
+        with tracer.start_as_current_span("register_model_version"):
+            model_version = _next_model_version(session)
 
-        # Find the current best metric so we know whether to promote this model.
-        current_best: ModelRegistry | None = session.execute(
-            select(ModelRegistry).where(ModelRegistry.status == "best")
-        ).scalar_one_or_none()
+            current_best: ModelRegistry | None = session.execute(
+                select(ModelRegistry).where(ModelRegistry.status == "best")
+            ).scalar_one_or_none()
 
-        is_new_best = (
-            current_best is None
-            or primary_metric > current_best.primary_metric
-        )
+            is_new_best = (
+                current_best is None
+                or primary_metric > current_best.primary_metric
+            )
 
-        if is_new_best:
-            _demote_current_best(session)
+            if is_new_best:
+                _demote_current_best(session)
 
-        new_status = "best" if is_new_best else "validated"
+            new_status = "best" if is_new_best else "validated"
 
-        entry = ModelRegistry(
-            model_version=model_version,
-            dataset_version=dataset_version,
-            training_batch_id=training_batch_id,
-            model_path=model_path,
-            metrics_path=metrics_path,
-            primary_metric=primary_metric,
-            status=new_status,
-            algorithm=algorithm,
-            hyperparameters=json.dumps(hyperparameters) if hyperparameters else None,
-            feature_set_version=feature_set_version,
-            notes=notes,
-            mlflow_run_id=mlflow_run_id,
-            model_uri=model_uri,
-        )
+            entry = ModelRegistry(
+                model_version=model_version,
+                dataset_version=dataset_version,
+                training_batch_id=training_batch_id,
+                model_path=model_path,
+                metrics_path=metrics_path,
+                primary_metric=primary_metric,
+                status=new_status,
+                algorithm=algorithm,
+                hyperparameters=json.dumps(hyperparameters) if hyperparameters else None,
+                feature_set_version=feature_set_version,
+                notes=notes,
+                mlflow_run_id=mlflow_run_id,
+                model_uri=model_uri,
+            )
 
-        session.add(entry)
-        session.commit()
-        session.refresh(entry)
+            session.add(entry)
+            session.commit()
+            session.refresh(entry)
 
-        print(
-            f"[Registry] Registered {model_version} "
-            f"(ROC-AUC={primary_metric:.4f}, status={new_status!r})"
-        )
+            print(
+                f"[Registry] Registered {model_version} "
+                f"(ROC-AUC={primary_metric:.4f}, status={new_status!r})"
+            )
 
-        return RegisteredModel(
-            id=entry.id,
-            model_version=entry.model_version,
-            status=entry.status,
-            primary_metric=entry.primary_metric,
-            model_path=entry.model_path,
-            metrics_path=entry.metrics_path,
-            mlflow_run_id=entry.mlflow_run_id,
-            model_uri=entry.model_uri,
-        )
-
+            return RegisteredModel(
+                id=entry.id,
+                model_version=entry.model_version,
+                status=entry.status,
+                primary_metric=entry.primary_metric,
+                model_path=entry.model_path,
+                metrics_path=entry.metrics_path,
+                mlflow_run_id=entry.mlflow_run_id,
+                model_uri=entry.model_uri,
+            )
     except SQLAlchemyError:
         session.rollback()
         raise
@@ -267,5 +269,32 @@ def get_model_by_version(model_version: str) -> ModelRegistry:
             raise LookupError(f"Model version {model_version!r} not found.")
 
         return model
+    finally:
+        session.close()
+
+
+def update_model_artifact_paths(
+    model_version: str,
+    *,
+    model_path: str,
+    metrics_path: str,
+) -> None:
+    session_factory = _create_session_factory()
+    session = session_factory()
+
+    try:
+        model = session.execute(
+            select(ModelRegistry).where(ModelRegistry.model_version == model_version)
+        ).scalar_one_or_none()
+
+        if model is None:
+            raise LookupError(f"Model version {model_version!r} not found.")
+
+        model.model_path = model_path
+        model.metrics_path = metrics_path
+        session.commit()
+    except SQLAlchemyError:
+        session.rollback()
+        raise
     finally:
         session.close()

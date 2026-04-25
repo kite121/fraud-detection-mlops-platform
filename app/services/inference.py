@@ -12,65 +12,77 @@ from app.services.dataset import (
     BASE_NUMERIC_FEATURES,
     ENGINEERED_NUMERIC_FEATURES,
 )
-from app.services.model_storage import DEFAULT_MODELS_BUCKET, load_artifact_from_storage
+from app.services.model_storage import load_model_from_storage
 from app.services.registry import get_best_model
+from app.services.tracing import get_tracer
 
 
 @dataclass(slots=True)
 class LoadedInferenceArtifacts:
-    """Holds the currently deployed model and the matching preprocessing pipeline."""
-
     model: Any
     preprocessor: Any | None
     model_version: str
 
-
-@dataclass(slots=True)
-class FraudPredictionResult:
-    """Structured prediction output returned by predict_fraud()."""
-
-    prediction: int
-    fraud_score: float
-    model_version: str
-
-
-# -+--  Sprint 3 Task 7: In-memory model cache with thread-safe reload  --+-
-#
-# The cache stores the currently loaded model so that every /predict request
-# does NOT hit MinIO. When a new best model is published (model_deployed event)
-# the "POST /reload" endpoint clears the cache and the next /predict request
-# automatically loads the new model.
 
 _model_cache: LoadedInferenceArtifacts | None = None
 _cache_lock = threading.Lock()
 
 
 def invalidate_model_cache() -> None:
-    """Clears the in-memory model cache so the next prediction loads a fresh model."""
     global _model_cache
     with _cache_lock:
         _model_cache = None
-    print("[Inference] Model cache invalidated: next prediction will reload from storage.")
 
 
-def get_cached_model() -> LoadedInferenceArtifacts:
-    """Returns the cached model, loading it from storage on first call or after reload."""
+def _resolve_preprocessor_path(model_path: str, preprocessor_path: str | None = None) -> str:
+    if preprocessor_path:
+        return preprocessor_path
+
+    if not model_path.endswith("/model.joblib"):
+        raise ValueError("Unable to infer preprocessor path from model artifact path.")
+
+    return model_path.removesuffix("/model.joblib") + "/preprocessor.joblib"
+
+
+def _load_from_storage() -> LoadedInferenceArtifacts:
+    registry_entry = get_best_model()
+
+    if not registry_entry.model_path:
+        raise LookupError(
+            f"Best model {registry_entry.model_version!r} has no model artifact path."
+        )
+
+    model = load_model_from_storage(registry_entry.model_path)
+
+    try:
+        preprocessor = load_model_from_storage(
+            _resolve_preprocessor_path(
+                registry_entry.model_path,
+                getattr(registry_entry, "preprocessor_path", None),
+            )
+        )
+    except Exception:
+        preprocessor = None
+
+    return LoadedInferenceArtifacts(
+        model=model,
+        preprocessor=preprocessor,
+        model_version=registry_entry.model_version,
+    )
+
+
+def load_best_model(force_reload: bool = False) -> LoadedInferenceArtifacts:
     global _model_cache
-    with _cache_lock:
-        if _model_cache is None:
-            _model_cache = _load_from_storage()
-        return _model_cache
+    tracer = get_tracer(__name__)
 
-
-# -+--  Loading helpers  --+-
-
-def _build_versioned_artifact_path(model_version: str, artifact_name: str) -> str:
-    """Builds the standard MinIO path for one versioned model artifact."""
-    return f"s3://{DEFAULT_MODELS_BUCKET}/models/{model_version}/{artifact_name}"
+    with tracer.start_as_current_span("load_best_model"):
+        with _cache_lock:
+            if force_reload or _model_cache is None:
+                _model_cache = _load_from_storage()
+            return _model_cache
 
 
 def _add_engineered_features(dataframe: pd.DataFrame) -> pd.DataFrame:
-    """Recreates the balance-based features used during model training."""
     dataframe = dataframe.copy()
     dataframe["origin_balance_delta"] = (
         dataframe["oldbalanceOrg"] - dataframe["newbalanceOrig"]
@@ -88,7 +100,6 @@ def _add_engineered_features(dataframe: pd.DataFrame) -> pd.DataFrame:
 
 
 def _prepare_inference_features(payload: Mapping[str, Any]) -> pd.DataFrame:
-    """Turns one transaction payload into the exact feature frame expected by training."""
     dataframe = pd.DataFrame([dict(payload)])
     dataframe = _add_engineered_features(dataframe)
 
@@ -100,60 +111,32 @@ def _prepare_inference_features(payload: Mapping[str, Any]) -> pd.DataFrame:
     return dataframe.loc[:, feature_columns].copy()
 
 
-def _load_from_storage() -> LoadedInferenceArtifacts:
-    """Fetches the best model record from the registry and downloads its artifacts."""
-    best_model = get_best_model()
-    model_path = _build_versioned_artifact_path(best_model.model_version, "model.joblib")
-    preprocessor_path = _build_versioned_artifact_path(
-        best_model.model_version,
-        "preprocessor.joblib",
-    )
+def predict_fraud(payload: Mapping[str, Any]) -> dict[str, Any]:
+    tracer = get_tracer(__name__)
 
-    model = load_artifact_from_storage(model_path)
+    with tracer.start_as_current_span("predict_fraud"):
+        loaded_artifacts = load_best_model()
+        feature_frame = _prepare_inference_features(payload)
 
-    try:
-        preprocessor = load_artifact_from_storage(preprocessor_path)
-    except Exception:
-        preprocessor = None
+        with tracer.start_as_current_span("preprocessing"):
+            model_input = feature_frame
+            if loaded_artifacts.preprocessor is not None:
+                model_input = loaded_artifacts.preprocessor.transform(feature_frame)
 
-    print(f"[Inference] Loaded model {best_model.model_version!r} from storage.")
+        with tracer.start_as_current_span("model_inference"):
+            prediction = int(np.asarray(loaded_artifacts.model.predict(model_input)).ravel()[0])
 
-    return LoadedInferenceArtifacts(
-        model=model,
-        preprocessor=preprocessor,
-        model_version=best_model.model_version,
-    )
+            if not hasattr(loaded_artifacts.model, "predict_proba"):
+                raise ValueError("The deployed model does not implement predict_proba().")
 
+            probabilities = np.asarray(loaded_artifacts.model.predict_proba(model_input))
+            if probabilities.ndim == 1:
+                fraud_score = float(probabilities[0])
+            else:
+                fraud_score = float(probabilities[0, 1])
 
-# -+--  Public API  --+-
-
-def load_best_model() -> LoadedInferenceArtifacts:
-    """Returns the currently cached best model, loading it if the cache is empty."""
-    return get_cached_model()
-
-
-def predict_fraud(payload: Mapping[str, Any]) -> FraudPredictionResult:
-    """Loads the best model from cache, prepares features, and returns one prediction."""
-    loaded_artifacts = get_cached_model()
-    feature_frame = _prepare_inference_features(payload)
-
-    model_input = feature_frame
-    if loaded_artifacts.preprocessor is not None:
-        model_input = loaded_artifacts.preprocessor.transform(feature_frame)
-
-    prediction = int(np.asarray(loaded_artifacts.model.predict(model_input)).ravel()[0])
-
-    if not hasattr(loaded_artifacts.model, "predict_proba"):
-        raise ValueError("The deployed model does not implement predict_proba().")
-
-    probabilities = np.asarray(loaded_artifacts.model.predict_proba(model_input))
-    if probabilities.ndim == 1:
-        fraud_score = float(probabilities[0])
-    else:
-        fraud_score = float(probabilities[0, 1])
-
-    return FraudPredictionResult(
-        prediction=prediction,
-        fraud_score=fraud_score,
-        model_version=loaded_artifacts.model_version,
-    )
+        return {
+            "prediction": prediction,
+            "fraud_score": fraud_score,
+            "model_version": loaded_artifacts.model_version,
+        }

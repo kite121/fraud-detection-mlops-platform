@@ -79,7 +79,6 @@ def _run_training_flow_for_batch(
 
     return registered_model, model_path, metrics_path
 
-
 def trigger_retraining(
     *,
     reference_batch_id: int,
