@@ -39,13 +39,16 @@ class TrainEnqueueResponse(BaseModel):
 class TrainingJobResponse(BaseModel):
     job_id: str
     job_type: str
-    dataset_version: str
+    dataset_version: str | None = None
+    batch_id: int | None = None
+    celery_task_id: str | None = None
     status: str
     created_at: datetime
     started_at: datetime | None = None
     finished_at: datetime | None = None
     error_message: str | None = None
     model_version: str | None = None
+    mlflow_run_id: str | None = None
 
     model_config = {"from_attributes": True}
 

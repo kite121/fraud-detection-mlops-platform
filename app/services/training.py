@@ -18,7 +18,7 @@ DEFAULT_RANDOM_STATE = 42
 DEFAULT_RUN_NAME = "training_run"
 
 DEFAULT_CATBOOST_PARAMS: dict[str, Any] = {
-    "loss_function": "LogLoss",
+    "loss_function": "Logloss",
     "eval_metric": "AUC",
     "iterations": 300,
     "learning_rate": 0.1,

@@ -63,12 +63,12 @@ TRAINING_JOBS_TOTAL = Counter(
 
 FAILED_JOBS_TOTAL = Counter(
     "training_jobs_failed_total",
-    "Total number of training jobs that ended in the "failed" state.",
+    'Total number of training jobs that ended in the "failed" state.',
 )
 
 MODELS_REGISTERED_TOTAL = Counter(
     "models_registered_total",
-    "Total number of model versions registered in the "model_registry" table.",
+    'Total number of model versions registered in the "model_registry" table.',
     ["status"],   # best | validated
 )
 

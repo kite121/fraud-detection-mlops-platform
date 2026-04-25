@@ -1,8 +1,12 @@
 # This file reads environment variables and provides access to them through the convenient "settings" object
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+    )
 
     # --- PostgreSQL ---
     postgres_host: str
@@ -35,7 +39,7 @@ class Settings(BaseSettings):
     def rabbitmq_url(self) -> str:
         return (
             f"amqp://{self.RABBITMQ_USER}:{self.RABBITMQ_PASSWORD}"
-            f"@{self.RABBITMQ_HOST}:{self.RABBITMQ_PORT}//"
+            f"@{self.RABBITMQ_HOST}:{self.RABBITMQ_PORT}/%2F"
         )
 
     @property
@@ -48,9 +52,5 @@ class Settings(BaseSettings):
             f"postgresql+psycopg2://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
-
-    class Config:
-        env_file = ".env"
-
 
 settings = Settings()
