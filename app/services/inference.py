@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Mapping
 
+import numpy as np
 import pandas as pd
 
+from app.services.dataset import (
+    BASE_CATEGORICAL_FEATURES,
+    BASE_NUMERIC_FEATURES,
+    ENGINEERED_NUMERIC_FEATURES,
+)
 from app.services.model_storage import load_model_from_storage
 from app.services.registry import get_best_model
 from app.services.tracing import get_tracer
@@ -13,14 +20,21 @@ from app.services.tracing import get_tracer
 @dataclass(slots=True)
 class LoadedInferenceArtifacts:
     model: Any
-    preprocessor: Any
+    preprocessor: Any | None
     model_version: str
 
 
-_loaded_artifacts: LoadedInferenceArtifacts | None = None
+_model_cache: LoadedInferenceArtifacts | None = None
+_cache_lock = threading.Lock()
 
 
-def _resolve_preprocessor_path(model_path: str, preprocessor_path: str | None) -> str:
+def invalidate_model_cache() -> None:
+    global _model_cache
+    with _cache_lock:
+        _model_cache = None
+
+
+def _resolve_preprocessor_path(model_path: str, preprocessor_path: str | None = None) -> str:
     if preprocessor_path:
         return preprocessor_path
 
@@ -30,57 +44,46 @@ def _resolve_preprocessor_path(model_path: str, preprocessor_path: str | None) -
     return model_path.removesuffix("/model.joblib") + "/preprocessor.joblib"
 
 
-def load_best_model(force_reload: bool = False) -> LoadedInferenceArtifacts:
-    global _loaded_artifacts
-    tracer = get_tracer(__name__)
+def _load_from_storage() -> LoadedInferenceArtifacts:
+    registry_entry = get_best_model()
 
-    with tracer.start_as_current_span("load_best_model"):
-        registry_entry = get_best_model()
+    if not registry_entry.model_path:
+        raise LookupError(
+            f"Best model {registry_entry.model_version!r} has no model artifact path."
+        )
 
-        if (
-            not force_reload
-            and _loaded_artifacts is not None
-            and _loaded_artifacts.model_version == registry_entry.model_version
-        ):
-            return _loaded_artifacts
+    model = load_model_from_storage(registry_entry.model_path)
 
-        if not registry_entry.model_path:
-            raise LookupError(
-                f"Best model {registry_entry.model_version!r} has no model artifact path."
-            )
-
-        model = load_model_from_storage(registry_entry.model_path)
+    try:
         preprocessor = load_model_from_storage(
             _resolve_preprocessor_path(
                 registry_entry.model_path,
                 getattr(registry_entry, "preprocessor_path", None),
             )
         )
+    except Exception:
+        preprocessor = None
 
-        _loaded_artifacts = LoadedInferenceArtifacts(
-            model=model,
-            preprocessor=preprocessor,
-            model_version=registry_entry.model_version,
-        )
-        return _loaded_artifacts
-
-
-def _build_feature_frame(transaction: dict[str, Any]) -> pd.DataFrame:
-    dataframe = pd.DataFrame(
-        [
-            {
-                "step": transaction["step"],
-                "type": transaction["type"],
-                "amount": transaction["amount"],
-                "oldbalanceOrg": transaction["oldbalanceOrg"],
-                "newbalanceOrig": transaction["newbalanceOrig"],
-                "oldbalanceDest": transaction["oldbalanceDest"],
-                "newbalanceDest": transaction["newbalanceDest"],
-                "isFlaggedFraud": transaction["isFlaggedFraud"],
-            }
-        ]
+    return LoadedInferenceArtifacts(
+        model=model,
+        preprocessor=preprocessor,
+        model_version=registry_entry.model_version,
     )
 
+
+def load_best_model(force_reload: bool = False) -> LoadedInferenceArtifacts:
+    global _model_cache
+    tracer = get_tracer(__name__)
+
+    with tracer.start_as_current_span("load_best_model"):
+        with _cache_lock:
+            if force_reload or _model_cache is None:
+                _model_cache = _load_from_storage()
+            return _model_cache
+
+
+def _add_engineered_features(dataframe: pd.DataFrame) -> pd.DataFrame:
+    dataframe = dataframe.copy()
     dataframe["origin_balance_delta"] = (
         dataframe["oldbalanceOrg"] - dataframe["newbalanceOrig"]
     )
@@ -96,23 +99,44 @@ def _build_feature_frame(transaction: dict[str, Any]) -> pd.DataFrame:
     return dataframe
 
 
-def predict_fraud(transaction: dict[str, Any]) -> dict[str, Any]:
+def _prepare_inference_features(payload: Mapping[str, Any]) -> pd.DataFrame:
+    dataframe = pd.DataFrame([dict(payload)])
+    dataframe = _add_engineered_features(dataframe)
+
+    feature_columns = [
+        *BASE_NUMERIC_FEATURES,
+        *ENGINEERED_NUMERIC_FEATURES,
+        *BASE_CATEGORICAL_FEATURES,
+    ]
+    return dataframe.loc[:, feature_columns].copy()
+
+
+def predict_fraud(payload: Mapping[str, Any]) -> dict[str, Any]:
     tracer = get_tracer(__name__)
 
     with tracer.start_as_current_span("predict_fraud"):
-        loaded = load_best_model()
+        loaded_artifacts = load_best_model()
+        feature_frame = _prepare_inference_features(payload)
 
         with tracer.start_as_current_span("preprocessing"):
-            features = _build_feature_frame(transaction)
-            transformed = loaded.preprocessor.transform(features)
+            model_input = feature_frame
+            if loaded_artifacts.preprocessor is not None:
+                model_input = loaded_artifacts.preprocessor.transform(feature_frame)
 
         with tracer.start_as_current_span("model_inference"):
-            probabilities = loaded.model.predict_proba(transformed)
-            fraud_score = float(probabilities[0][1])
-            prediction = int(fraud_score >= 0.5)
+            prediction = int(np.asarray(loaded_artifacts.model.predict(model_input)).ravel()[0])
+
+            if not hasattr(loaded_artifacts.model, "predict_proba"):
+                raise ValueError("The deployed model does not implement predict_proba().")
+
+            probabilities = np.asarray(loaded_artifacts.model.predict_proba(model_input))
+            if probabilities.ndim == 1:
+                fraud_score = float(probabilities[0])
+            else:
+                fraud_score = float(probabilities[0, 1])
 
         return {
             "prediction": prediction,
             "fraud_score": fraud_score,
-            "model_version": loaded.model_version,
+            "model_version": loaded_artifacts.model_version,
         }
