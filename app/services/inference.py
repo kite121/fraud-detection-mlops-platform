@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -33,15 +34,43 @@ class FraudPredictionResult:
     model_version: str
 
 
+# -+--  Sprint 3 Task 7: In-memory model cache with thread-safe reload  --+-
+#
+# The cache stores the currently loaded model so that every /predict request
+# does NOT hit MinIO. When a new best model is published (model_deployed event)
+# the "POST /reload" endpoint clears the cache and the next /predict request
+# automatically loads the new model.
+
+_model_cache: LoadedInferenceArtifacts | None = None
+_cache_lock = threading.Lock()
+
+
+def invalidate_model_cache() -> None:
+    """Clears the in-memory model cache so the next prediction loads a fresh model."""
+    global _model_cache
+    with _cache_lock:
+        _model_cache = None
+    print("[Inference] Model cache invalidated: next prediction will reload from storage.")
+
+
+def get_cached_model() -> LoadedInferenceArtifacts:
+    """Returns the cached model, loading it from storage on first call or after reload."""
+    global _model_cache
+    with _cache_lock:
+        if _model_cache is None:
+            _model_cache = _load_from_storage()
+        return _model_cache
+
+
+# -+--  Loading helpers  --+-
+
 def _build_versioned_artifact_path(model_version: str, artifact_name: str) -> str:
     """Builds the standard MinIO path for one versioned model artifact."""
-
     return f"s3://{DEFAULT_MODELS_BUCKET}/models/{model_version}/{artifact_name}"
 
 
 def _add_engineered_features(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Recreates the balance-based features used during model training."""
-
     dataframe = dataframe.copy()
     dataframe["origin_balance_delta"] = (
         dataframe["oldbalanceOrg"] - dataframe["newbalanceOrig"]
@@ -60,7 +89,6 @@ def _add_engineered_features(dataframe: pd.DataFrame) -> pd.DataFrame:
 
 def _prepare_inference_features(payload: Mapping[str, Any]) -> pd.DataFrame:
     """Turns one transaction payload into the exact feature frame expected by training."""
-
     dataframe = pd.DataFrame([dict(payload)])
     dataframe = _add_engineered_features(dataframe)
 
@@ -72,9 +100,8 @@ def _prepare_inference_features(payload: Mapping[str, Any]) -> pd.DataFrame:
     return dataframe.loc[:, feature_columns].copy()
 
 
-def load_best_model() -> LoadedInferenceArtifacts:
-    """Loads the current best model and its compatible preprocessor from storage."""
-
+def _load_from_storage() -> LoadedInferenceArtifacts:
+    """Fetches the best model record from the registry and downloads its artifacts."""
     best_model = get_best_model()
     model_path = _build_versioned_artifact_path(best_model.model_version, "model.joblib")
     preprocessor_path = _build_versioned_artifact_path(
@@ -89,6 +116,8 @@ def load_best_model() -> LoadedInferenceArtifacts:
     except Exception:
         preprocessor = None
 
+    print(f"[Inference] Loaded model {best_model.model_version!r} from storage.")
+
     return LoadedInferenceArtifacts(
         model=model,
         preprocessor=preprocessor,
@@ -96,10 +125,16 @@ def load_best_model() -> LoadedInferenceArtifacts:
     )
 
 
-def predict_fraud(payload: Mapping[str, Any]) -> FraudPredictionResult:
-    """Loads the best model, prepares inference features, and returns one prediction."""
+# -+--  Public API  --+-
 
-    loaded_artifacts = load_best_model()
+def load_best_model() -> LoadedInferenceArtifacts:
+    """Returns the currently cached best model, loading it if the cache is empty."""
+    return get_cached_model()
+
+
+def predict_fraud(payload: Mapping[str, Any]) -> FraudPredictionResult:
+    """Loads the best model from cache, prepares features, and returns one prediction."""
+    loaded_artifacts = get_cached_model()
     feature_frame = _prepare_inference_features(payload)
 
     model_input = feature_frame

@@ -12,15 +12,15 @@ import joblib
 from dotenv import load_dotenv
 from minio import Minio
 
+from app.services.retry import retry_minio
+
 
 load_dotenv()
 
 DEFAULT_MODELS_BUCKET = "models"
 
 
-# ---------------------------------------------------------------------------
-# MinIO client (same approach as storage.py)
-# ---------------------------------------------------------------------------
+# -+--  MinIO client (same approach as storage.py)  --+-
 
 def _create_minio_client() -> Minio:
     endpoint = os.getenv("MINIO_ENDPOINT", "localhost:9000")
@@ -63,9 +63,7 @@ def _upload_bytes(
     return f"s3://{bucket_name}/{object_key}"
 
 
-# ---------------------------------------------------------------------------
-# Serialisation helpers
-# ---------------------------------------------------------------------------
+# -+--  Serialisation helpers  --+-
 
 def _serialise_with_joblib(obj: Any) -> bytes:
     """Serialises any joblib-compatible object (sklearn models, pipelines, etc.)."""
@@ -79,9 +77,7 @@ def _serialise_with_joblib(obj: Any) -> bytes:
         tmp_path.unlink(missing_ok=True)
 
 
-# ---------------------------------------------------------------------------
-# Public return type
-# ---------------------------------------------------------------------------
+# -+--  Public return type  --+-
 
 @dataclass(slots=True)
 class ModelArtifactPaths:
@@ -94,10 +90,9 @@ class ModelArtifactPaths:
     preprocessor_path: str | None  # None when no preprocessor was provided
 
 
-# ---------------------------------------------------------------------------
-# Main function — Task 6
-# ---------------------------------------------------------------------------
+# -+--  Main function: Sprint 2 Task 6  --+-
 
+@retry_minio
 def save_model_artifacts(
     *,
     model: Any,
@@ -110,9 +105,9 @@ def save_model_artifacts(
     Serialises and uploads all model artifacts to MinIO under a versioned prefix.
 
     Stored files:
-        models/<model_version>/model.joblib        — the trained model
-        models/<model_version>/metrics.json        — evaluation metrics dict
-        models/<model_version>/preprocessor.joblib — sklearn preprocessor (optional)
+        models/<model_version>/model.joblib         —  the trained model
+        models/<model_version>/metrics.json         —  evaluation metrics dict
+        models/<model_version>/preprocessor.joblib  —  sklearn preprocessor (optional)
 
     Args:
         model:          Trained model object (CatBoost, sklearn-compatible).
@@ -129,7 +124,7 @@ def save_model_artifacts(
 
     prefix = f"models/{model_version}"
 
-    # --- model ---
+    # -+-- model --+-
     print(f"[Storage] Uploading model artifact → {prefix}/model.joblib")
     model_bytes = _serialise_with_joblib(model)
     model_path = _upload_bytes(
@@ -139,7 +134,7 @@ def save_model_artifacts(
         model_bytes,
     )
 
-    # --- metrics ---
+    # -+-- metrics --+-
     print(f"[Storage] Uploading metrics → {prefix}/metrics.json")
     metrics_bytes = json.dumps(metrics, indent=2, default=float).encode()
     metrics_path = _upload_bytes(
@@ -150,7 +145,7 @@ def save_model_artifacts(
         content_type="application/json",
     )
 
-    # --- preprocessor (optional) ---
+    # -+-- preprocessor (optional) --+-
     preprocessor_path: str | None = None
     if preprocessor is not None:
         print(f"[Storage] Uploading preprocessor → {prefix}/preprocessor.joblib")
@@ -171,6 +166,7 @@ def save_model_artifacts(
     )
 
 
+@retry_minio
 def load_artifact_from_storage(artifact_path: str) -> Any:
     """
     Downloads and deserialises one joblib artifact from MinIO.

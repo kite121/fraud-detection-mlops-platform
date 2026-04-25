@@ -32,3 +32,12 @@ python-multipart
 
 # Async task queue (Sprint 3)
 celery
+
+# Message broker client (RabbitMQ)
+pika
+
+# Sprint 3 Task 8:  Prometheus metrics
+prometheus-client
+
+# Sprint 3 Task 12:  Retry / fault tolerance
+tenacity
