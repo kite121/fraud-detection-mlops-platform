@@ -37,3 +37,18 @@ class BatchMetadata(Base):
             f"status={self.status} rows={self.rows_count}>"
         )
       
+class TrainingJob(Base):
+    __tablename__ = "training_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    job_type: Mapped[str] = mapped_column(String(50), nullable=False, default="training")
+    dataset_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    batch_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="queued")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    model_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    mlflow_run_id: Mapped[str | None] = mapped_column(String(255), nullable=True)

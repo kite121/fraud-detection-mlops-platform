@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-  
+
     # --- PostgreSQL ---
     postgres_host: str
     postgres_port: int = 5432
@@ -21,7 +21,17 @@ class Settings(BaseSettings):
     mlflow_tracking_uri: str = "http://mlflow:5000"
     mlflow_experiment_name: str = "fraud-detection-training"
     mlflow_artifacts_bucket: str = "mlflow-artifacts"
-    
+
+    # RabbitMQ
+    RABBITMQ_HOST: str
+    RABBITMQ_PORT: int
+    RABBITMQ_USER: str
+    RABBITMQ_PASS: str
+
+    @property
+    def rabbitmq_url(self) -> str:
+        return f"amqp://{self.RABBITMQ_USER}:{self.RABBITMQ_PASS}@{self.RABBITMQ_HOST}:{self.RABBITMQ_PORT}/"
+
     @property
     def database_url(self) -> str:
         return (

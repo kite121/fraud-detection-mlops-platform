@@ -7,9 +7,8 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from app.services.metadata import save_batch_metadata
-from app.services.storage import upload_to_storage
 from app.services.validation import validate_csv
-
+from app.services.storage import upload_to_storage
 
 router = APIRouter()
 
