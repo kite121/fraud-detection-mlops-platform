@@ -22,15 +22,14 @@ class Settings(BaseSettings):
     mlflow_experiment_name: str = "fraud-detection-training"
     mlflow_artifacts_bucket: str = "mlflow-artifacts"
 
-    # RabbitMQ
-    RABBITMQ_HOST: str
-    RABBITMQ_PORT: int
-    RABBITMQ_USER: str
-    RABBITMQ_PASS: str
+    # --- Celery / RabbitMQ ---
+    rabbitmq_user: str = "guest"
+    rabbitmq_password: str = "guest"
+    rabbitmq_url: str = "amqp://guest:guest@localhost:5672//"
 
-    @property
-    def rabbitmq_url(self) -> str:
-        return f"amqp://{self.RABBITMQ_USER}:{self.RABBITMQ_PASS}@{self.RABBITMQ_HOST}:{self.RABBITMQ_PORT}/"
+    celery_broker_url: str = "amqp://guest:guest@localhost:5672//"
+    celery_result_backend: str = "rpc://"
+    celery_task_always_eager: bool = False
 
     @property
     def database_url(self) -> str:

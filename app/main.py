@@ -7,8 +7,8 @@ from app.api import ingest, jobs, predict, train
 from app.db import Base, check_db_connection, engine
 from app.services.events import ensure_required_queues
 from app.services.inference import load_best_model
+from app.services.metrics import instrument_app
 from app.services.registry import init_registry_table
-from app.services.tracing import instrument_fastapi_app, init_tracing, resolve_service_name
 
 
 @asynccontextmanager
@@ -40,10 +40,10 @@ async def lifespan(app: FastAPI):
     print("[DB] The database connection is closed.")
 
 
-init_tracing(resolve_service_name())
-
 app = FastAPI(title="Fraud Detection MLOps Platform", lifespan=lifespan)
-instrument_fastapi_app(app)
+
+# Sprint 3 Task 8: attach Prometheus middleware and /metrics route
+instrument_app(app)
 
 if os.getenv("APP_ROLE", "training") == "inference":
     app.include_router(predict.router)
@@ -51,6 +51,7 @@ else:
     app.include_router(ingest.router)
     app.include_router(train.router)
     app.include_router(jobs.router)
+    app.include_router(predict.router)
 
 
 @app.get("/health")
