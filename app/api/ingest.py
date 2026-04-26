@@ -6,9 +6,10 @@ from pathlib import Path
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
+from app.services.events import publish_data_ingested
 from app.services.metadata import save_batch_metadata
-from app.services.validation import validate_csv
 from app.services.storage import upload_to_storage
+from app.services.validation import validate_csv
 
 router = APIRouter()
 
@@ -61,6 +62,11 @@ def ingest_file(
             storage_path=storage_path,
             rows_count=validation_result.rows_count,
             status="uploaded",
+        )
+        publish_data_ingested(
+            batch_id=batch_id,
+            dataset_version=dataset_version,
+            client_id=client_id,
         )
 
         return IngestResponse(

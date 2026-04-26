@@ -1,13 +1,25 @@
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 
+from app.celery_app import celery_app
+from app.services.events import (
+    DATA_INGESTED_QUEUE,
+    consume_queue,
+    publish_retraining_requested,
+)
+from app.services.jobs import attach_celery_task_id, create_training_job, mark_job_failed
 from app.services.dataset import prepare_training_dataset
 from app.services.evaluation import evaluate_model
 from app.services.model_storage import save_model_artifacts
 from app.services.monitoring import MonitoringRunResult, monitor_model
-from app.services.registry import RegisteredModel, register_model_version
+from app.services.registry import RegisteredModel, get_best_model, register_model_version
+from app.services.tracing import get_tracer
 from app.services.training import TrainedModelResult, train_model
+
+RETRAIN_MODEL_TASK_NAME = "workers.retraining_worker.retrain_model_task"
+_data_ingested_listener_started = False
 
 
 @dataclass(slots=True)
@@ -78,6 +90,119 @@ def _run_training_flow_for_batch(
         metrics_path = pending_artifact_paths.metrics_path
 
     return registered_model, model_path, metrics_path
+
+
+def _enqueue_retraining_job(
+    *,
+    batch_id: int,
+    dataset_version: str | None,
+    reason: str,
+) -> str:
+    """Creates one retraining job record and dispatches the Celery task."""
+
+    job = create_training_job(
+        batch_id=batch_id,
+        dataset_version=dataset_version,
+        job_type="retraining",
+    )
+
+    try:
+        async_result = celery_app.send_task(
+            RETRAIN_MODEL_TASK_NAME,
+            args=[batch_id, dataset_version, job.job_id, reason],
+        )
+        attach_celery_task_id(job.job_id, async_result.id)
+        publish_retraining_requested(
+            reason=reason,
+            dataset_version=dataset_version,
+            batch_id=batch_id,
+            job_id=job.job_id,
+        )
+    except Exception as error:
+        mark_job_failed(job.job_id, str(error))
+        raise
+
+    return job.job_id
+
+
+def _handle_data_ingested_event(message: dict, _headers: dict) -> None:
+    """
+    Reacts to a newly ingested batch:
+      1. look up the current best model
+      2. compare the new batch against the best model's training batch
+      3. enqueue retraining if drift exceeds the threshold
+    """
+
+    tracer = get_tracer(__name__)
+    batch_id = int(message["batch_id"])
+    dataset_version = message.get("dataset_version")
+
+    with tracer.start_as_current_span("handle_data_ingested_event") as span:
+        span.set_attribute("batch.id", batch_id)
+        if dataset_version is not None:
+            span.set_attribute("dataset.version", dataset_version)
+
+        try:
+            current_best = get_best_model()
+        except LookupError:
+            print(
+                "[Retraining] Skipping auto-retraining check: "
+                "no best model exists yet."
+            )
+            return
+
+        reference_batch_id = current_best.training_batch_id
+        if reference_batch_id == batch_id:
+            print(
+                "[Retraining] Skipping auto-retraining check: "
+                "new batch matches the current reference batch."
+            )
+            return
+
+        monitoring_result: MonitoringRunResult = monitor_model(
+            reference_batch_id=reference_batch_id,
+            current_batch_id=batch_id,
+            dataset_version=dataset_version,
+        )
+
+        if not monitoring_result.drift_result.degraded:
+            print(
+                "[Retraining] Drift below threshold; "
+                f"no retraining needed for batch {batch_id}."
+            )
+            return
+
+        reason = (
+            "auto-retraining triggered after data_ingested event "
+            f"(reference_batch_id={reference_batch_id}, current_batch_id={batch_id})"
+        )
+        job_id = _enqueue_retraining_job(
+            batch_id=batch_id,
+            dataset_version=dataset_version,
+            reason=reason,
+        )
+        print(
+            "[Retraining] Drift exceeded threshold; "
+            f"queued retraining job {job_id!r} for batch {batch_id}."
+        )
+
+
+def start_data_ingested_listener() -> None:
+    """Starts one background consumer that reacts to data_ingested events."""
+    global _data_ingested_listener_started
+
+    if _data_ingested_listener_started:
+        return
+
+    _data_ingested_listener_started = True
+    listener_thread = threading.Thread(
+        target=consume_queue,
+        args=(DATA_INGESTED_QUEUE, _handle_data_ingested_event),
+        name="data-ingested-listener",
+        daemon=True,
+    )
+    listener_thread.start()
+    print("[Retraining] Background listener started for data_ingested events.")
 
 def trigger_retraining(
     *,

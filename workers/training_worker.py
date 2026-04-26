@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import time
+
 from app.celery_app import celery_app
 from app.services.events import publish_training_completed
 from app.services.dataset import prepare_training_dataset
 from app.services.evaluation import evaluate_model
 from app.services.jobs import mark_job_completed, mark_job_failed, mark_job_running
+from app.services.metrics import observe_training_duration
 from app.services.model_storage import save_model_artifacts
 from app.services.registry import register_model_version, update_model_artifact_paths
 from app.services.tracing import get_tracer
@@ -14,6 +17,7 @@ from app.services.training import train_model
 @celery_app.task(bind=True, name="workers.training_worker.train_model_task")
 def train_model_task(self, batch_id: int | None, dataset_version: str | None, job_id: str):
     tracer = get_tracer(__name__)
+    started_at = time.perf_counter()
 
     try:
         with tracer.start_as_current_span("train_model_task") as span:
@@ -78,6 +82,7 @@ def train_model_task(self, batch_id: int | None, dataset_version: str | None, jo
                 primary_metric=registered.primary_metric,
                 job_id=job_id,
             )
+            observe_training_duration(time.perf_counter() - started_at)
     except Exception as error:
         mark_job_failed(job_id, str(error))
         raise

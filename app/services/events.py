@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.services.broker import (
+    DATA_INGESTED_QUEUE,
     MODEL_DEPLOYED_QUEUE,
     REQUIRED_QUEUES,
     RETRAINING_REQUESTED_QUEUE,
@@ -20,6 +21,7 @@ EVENT_TRAINING_REQUESTED = TRAINING_REQUESTED_QUEUE
 EVENT_TRAINING_COMPLETED = TRAINING_COMPLETED_QUEUE
 EVENT_MODEL_DEPLOYED = MODEL_DEPLOYED_QUEUE
 EVENT_RETRAINING_REQUESTED = RETRAINING_REQUESTED_QUEUE
+EVENT_DATA_INGESTED = DATA_INGESTED_QUEUE
 
 
 def publish_event(event_name: str, data: dict[str, Any]) -> bool:
@@ -53,6 +55,21 @@ def publish_training_requested(
             "batch_id": batch_id,
             "dataset_version": dataset_version,
             "job_id": job_id,
+        },
+    )
+
+
+def publish_data_ingested(
+    batch_id: int,
+    dataset_version: str,
+    client_id: str | None = None,
+) -> bool:
+    return publish_event(
+        EVENT_DATA_INGESTED,
+        {
+            "batch_id": batch_id,
+            "dataset_version": dataset_version,
+            "client_id": client_id,
         },
     )
 

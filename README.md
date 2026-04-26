@@ -222,119 +222,73 @@ The MLflow addition complements Sprint 1 and Sprint 2 by adding:
 
 ## Current repository structure
 
-Based on the current codebase, the repository already follows a layered application layout.
+The current branch already contains the distributed Sprint 3 components.
 
 ```text
 fraud-detection-mlops-platform/
 ├── README.md
 ├── Dockerfile
+├── Dockerfile.mlflow
 ├── docker-compose.yml
 ├── .env
 ├── .env.example
+├── monitoring/
+│   └── prometheus.yml
 ├── app/
 │   ├── main.py
 │   ├── config.py
 │   ├── db.py
 │   ├── models.py
 │   ├── schemas.py
+│   ├── celery_app.py
 │   ├── api/
-│   │   └── ingest.py
+│   │   ├── ingest.py
+│   │   ├── train.py
+│   │   ├── jobs.py
+│   │   ├── predict.py
+│   │   └── monitoring.py
 │   └── services/
+│       ├── broker.py
+│       ├── events.py
 │       ├── validation.py
 │       ├── storage.py
 │       ├── metadata.py
-│       └── dataset.py
-└── descriptions/
-    ├── ingest.txt
-    ├── validation.txt
-    ├── storage.txt
-    ├── metadata.txt
-    ├── dataset.txt
-    └── docker.txt
+│       ├── dataset.py
+│       ├── training.py
+│       ├── evaluation.py
+│       ├── model_storage.py
+│       ├── registry.py
+│       ├── inference.py
+│       ├── jobs.py
+│       ├── monitoring.py
+│       ├── drift.py
+│       ├── retraining.py
+│       ├── metrics.py
+│       ├── tracing.py
+│       └── retry.py
+└── workers/
+    ├── training_worker.py
+    └── retraining_worker.py
 ```
 
-## What each module does
+## Runtime flow
 
-### `app/main.py`
+The current operational flow is:
 
-Application entrypoint:
-
-- creates the FastAPI app;
-- initializes database tables on startup;
-- checks PostgreSQL connectivity;
-- registers API routers;
-- exposes a simple `/health` endpoint.
-
-### `app/config.py`
-
-Loads configuration from environment variables and builds a database URL through `pydantic-settings`.
-
-### `app/db.py`
-
-Database layer:
-
-- creates the SQLAlchemy engine;
-- defines the declarative base;
-- provides session dependency;
-- exposes database health checking.
-
-### `app/models.py`
-
-Contains ORM models for batch metadata.
-
-### `app/schemas.py`
-
-Contains Pydantic request/response schemas for ingestion metadata.
-
-### `app/api/ingest.py`
-
-Implements `POST /ingest` as an orchestration endpoint that:
-
-- receives the uploaded file;
-- validates it;
-- uploads it to MinIO;
-- saves metadata in PostgreSQL;
-- returns batch-level response data.
-
-### `app/services/validation.py`
-
-Implements a compact but strict CSV validator for the fraud dataset.
-
-Validation includes:
-
-- required columns;
-- non-empty dataset;
-- non-empty critical columns;
-- expected numeric, string, and binary value types.
-
-### `app/services/storage.py`
-
-Handles MinIO object storage:
-
-- creates the client from environment variables;
-- creates the bucket if needed;
-- builds client-specific object paths;
-- uploads raw CSV files;
-- returns `s3://...` storage paths.
-
-### `app/services/metadata.py`
-
-Stores metadata for uploaded batches in PostgreSQL using SQLAlchemy ORM.
-
-### `app/services/dataset.py`
-
-Implements the training dataset layer:
-
-- resolves a raw batch from metadata;
-- downloads CSV from storage;
-- builds baseline features and engineered balance-based features;
-- performs train/validation split;
-- fits preprocessing;
-- returns processed datasets plus logging metadata.
+1. `POST /ingest` validates and stores one CSV batch.
+2. The service writes `batch_metadata` to PostgreSQL and publishes `data_ingested`.
+3. The training service listens to `data_ingested` and runs drift monitoring in the background.
+4. If drift is above threshold, a retraining job is created automatically and dispatched to Celery.
+5. `POST /train` can also manually enqueue an explicit training job.
+6. Worker processes run training or retraining asynchronously.
+7. The best model is registered in PostgreSQL and artifacts are saved to MinIO.
+8. If a newly trained model becomes `best`, the platform publishes `model_deployed`.
+9. The inference service listens for `model_deployed` and reloads the active model automatically.
+10. `POST /predict` serves online fraud predictions from the current best model.
 
 ## Dataset assumptions
 
-The ingestion and training flow are built around a fraud detection transaction dataset with columns such as:
+The platform expects PaySim-style transaction data with at least these columns:
 
 - `step`
 - `type`
@@ -348,88 +302,284 @@ The ingestion and training flow are built around a fraud detection transaction d
 - `isFraud`
 - `isFlaggedFraud`
 
-The project is therefore aligned with PaySim-style fraud detection data and baseline tabular ML pipelines.
-
 ## Technology stack
-
-The project uses a practical MLOps stack built around familiar tools:
 
 - `Python`
 - `FastAPI`
+- `Celery`
+- `RabbitMQ`
 - `SQLAlchemy`
 - `PostgreSQL`
 - `MinIO`
 - `Pandas`
 - `scikit-learn`
-- `Docker` and `Docker Compose`
+- `CatBoost`
 - `MLflow`
-- `Celery` and message broker layer for async orchestration
-- `Prometheus` and `Jaeger` for observability in the full target architecture
+- `Prometheus`
+- `Jaeger`
+- `Docker Compose`
 
-## Why this project is strong
+## Service map
 
-This repository is valuable because it is not only about model training. It is about building a realistic platform around the model.
+When the stack is up, the important endpoints are:
 
-It demonstrates:
+- training API: [http://localhost:8000](http://localhost:8000)
+- inference API: [http://localhost:8001](http://localhost:8001)
+- MLflow UI: [http://localhost:5000](http://localhost:5000)
+- MinIO Console: [http://localhost:9001](http://localhost:9001)
+- RabbitMQ Management: [http://localhost:15672](http://localhost:15672)
+- Prometheus: [http://localhost:9090](http://localhost:9090)
+- Jaeger: [http://localhost:16686](http://localhost:16686)
 
-- separation of raw data ingestion from training preparation;
-- object storage plus relational metadata tracking;
-- dataset lineage and versioning;
-- containerized service architecture;
-- experiment tracking through MLflow;
-- the full path from uploaded data to deployed fraud model;
-- MLOps thinking rather than notebook-only ML work.
+## Runbook
 
-## Running the platform
+This section is the recommended end-to-end demo flow for the current branch.
 
-At the infrastructure level, the platform is designed to run through Docker Compose.
+### 1. Prepare `.env`
 
-Typical workflow:
+Create `.env` from `.env.example` and fill in the required values.
 
-1. configure environment variables in `.env`
-2. build and start services:
+Minimal local example:
+
+```env
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
+POSTGRES_DB=mlops_db
+POSTGRES_USER=mlops_user
+POSTGRES_PASSWORD=mlops_password
+
+MINIO_ENDPOINT=minio:9000
+MINIO_ROOT_USER=admin
+MINIO_ROOT_PASSWORD=password
+MINIO_SECURE=false
+
+MLFLOW_TRACKING_URI=http://mlflow:5000
+MLFLOW_EXPERIMENT_NAME=fraud-detection-training
+MLFLOW_ARTIFACTS_BUCKET=mlflow-artifacts
+AWS_ACCESS_KEY_ID=admin
+AWS_SECRET_ACCESS_KEY=password
+MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+
+RABBITMQ_USER=guest
+RABBITMQ_PASSWORD=guest
+RABBITMQ_HOST=rabbitmq
+RABBITMQ_PORT=5672
+RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/%2F
+
+CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672/%2F
+CELERY_RESULT_BACKEND=rpc://
+```
+
+### 2. Start the full stack
 
 ```bash
 docker compose up --build
 ```
 
-3. verify the service health:
+Wait until:
+
+- `postgres` becomes healthy
+- `minio` becomes healthy
+- `rabbitmq` becomes healthy
+- `mlflow` starts
+- `ingestion-service`, `inference-service`, and `worker-service` are running
+
+### 3. Verify health
+
+Training service:
 
 ```bash
-GET /health
+curl http://localhost:8000/health
 ```
 
-4. upload a dataset batch through:
+Inference service:
 
 ```bash
-POST /ingest
+curl http://localhost:8001/health
 ```
 
-In the full project flow, the next steps are:
+### 4. Upload a dataset batch
 
-- trigger training;
-- inspect MLflow runs;
-- register and promote the best model;
-- serve predictions through the inference service.
+Use the sample file in the repository:
 
-## Recommended future structure expansion
+```bash
+curl -X POST http://localhost:8000/ingest \
+  -F "client_id=test-client" \
+  -F "dataset_version=v1" \
+  -F "file=@test_valid.csv"
+```
 
-As the repository grows toward the full Sprint 3 architecture, the natural next additions are:
+Expected response:
 
-- `app/api/train.py`
-- `app/api/predict.py`
-- `app/api/jobs.py`
-- `app/services/training.py`
-- `app/services/evaluation.py`
-- `app/services/registry.py`
-- `app/services/mlflow_tracking.py`
-- `app/services/monitoring.py`
-- `app/services/drift.py`
-- `worker/` or `tasks/` for Celery-based asynchronous execution
-- `inference_service/` if serving is separated into its own deployable module
+- `status`
+- `batch_id`
+- `rows_count`
+- `storage_path`
+
+Keep the returned `batch_id`.
+
+### 5. Enqueue training manually
+
+```bash
+curl -X POST http://localhost:8000/train \
+  -H "Content-Type: application/json" \
+  -d '{
+    "batch_id": 1,
+    "notes": "manual demo run"
+  }'
+```
+
+Expected response:
+
+- `status: queued`
+- `job_id`
+- `message`
+
+Keep the returned `job_id`.
+
+### 6. Check training job status
+
+```bash
+curl http://localhost:8000/jobs/<job_id>
+```
+
+Status lifecycle:
+
+- `queued`
+- `running`
+- `completed`
+- `failed`
+
+When completed, the response should include at least:
+
+- `model_version`
+- `mlflow_run_id`
+
+### 7. Inspect MLflow
+
+Open [http://localhost:5000](http://localhost:5000).
+
+You should see:
+
+- a training run
+- logged hyperparameters
+- dataset metadata
+- evaluation metrics such as `roc_auc`, `pr_auc`, `precision`, `recall`, `f1_score`
+- logged model and preprocessor artifacts
+
+### 8. Run online inference
+
+Call the inference service directly:
+
+```bash
+curl -X POST http://localhost:8001/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "step": 1,
+    "type": "PAYMENT",
+    "amount": 100.0,
+    "oldbalanceOrg": 500.0,
+    "newbalanceOrig": 400.0,
+    "oldbalanceDest": 0.0,
+    "newbalanceDest": 100.0,
+    "isFlaggedFraud": 0
+  }'
+```
+
+Expected response:
+
+- `prediction`
+- `fraud_score`
+- `model_version`
+
+### 9. Run monitoring manually
+
+You can run one explicit drift check through the training API:
+
+```bash
+curl -X POST http://localhost:8000/monitor \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reference_batch_id": 1,
+    "current_batch_id": 2
+  }'
+```
+
+Expected response:
+
+- `degraded`
+- `max_feature_psi`
+- `positive_rate_delta`
+- `reference_profile_path`
+- `drift_result_path`
+
+### 10. Understand auto-monitoring and auto-retraining
+
+The branch also supports an automatic runtime flow:
+
+- after every successful `POST /ingest`, the service publishes `data_ingested`
+- the training service consumes `data_ingested`
+- it uses the current `best` model's `training_batch_id` as the reference batch
+- it runs `monitor_model(...)`
+- if `degraded == true`, it creates a retraining job automatically
+- the worker executes retraining through Celery
+- if the retrained model becomes the new `best`, `model_deployed` is published
+- the inference service listens to `model_deployed` and reloads the active model automatically
+
+This means that monitoring is available both:
+
+- manually through `POST /monitor`
+- automatically after new data ingestion
+
+### 11. Inspect raw data, models, and artifacts
+
+Use MinIO Console at [http://localhost:9001](http://localhost:9001).
+
+Expected buckets:
+
+- `raw-data`
+- `models`
+- `mlflow-artifacts`
+- `monitoring-artifacts` may appear after monitoring/drift runs
+
+### 12. Inspect observability
+
+Prometheus:
+
+- open [http://localhost:9090](http://localhost:9090)
+- query metrics such as:
+  - `http_requests_total`
+  - `http_request_duration_seconds`
+  - `training_jobs_total`
+  - `training_duration_seconds`
+  - `models_registered_total`
+  - `inference_requests_total`
+  - `inference_duration_seconds`
+  - `active_model_version_info`
+
+Jaeger:
+
+- open [http://localhost:16686](http://localhost:16686)
+- inspect traces for:
+  - `POST /train`
+  - `train_model_task`
+  - `predict_fraud`
+  - broker publish/consume spans
+
+## What to expect from a successful demo
+
+The branch should demonstrate the following complete path:
+
+1. upload data with `POST /ingest`
+2. enqueue training with `POST /train`
+3. track job progress with `GET /jobs/{job_id}`
+4. inspect the run in MLflow
+5. serve predictions through `POST /predict`
+6. inspect metrics in Prometheus
+7. inspect traces in Jaeger
+8. run drift monitoring manually with `POST /monitor`
+9. allow automatic monitoring and retraining after new data ingestion
 
 ## Short summary
 
-`fraud-detection-mlops-platform` is a compact but realistic distributed MLOps project for fraud detection. It combines ingestion, storage, metadata tracking, dataset preparation, model lifecycle management, tracking, orchestration, and serving into a single platform-oriented architecture.
-
-It is best understood not as “just an API” and not as “just a fraud model,” but as a full engineering project around the lifecycle of an ML fraud detection system.
+`fraud-detection-mlops-platform` is a distributed MLOps demo platform for fraud detection. It covers ingestion, async training orchestration, model registry, experiment tracking, inference serving, monitoring, drift checks, event-driven retraining, and observability in one reproducible Docker Compose stack.

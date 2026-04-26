@@ -15,8 +15,10 @@ TRAINING_REQUESTED_QUEUE = "training_requested"
 TRAINING_COMPLETED_QUEUE = "training_completed"
 MODEL_DEPLOYED_QUEUE = "model_deployed"
 RETRAINING_REQUESTED_QUEUE = "retraining_requested"
+DATA_INGESTED_QUEUE = "data_ingested"
 
 REQUIRED_QUEUES = (
+    DATA_INGESTED_QUEUE,
     TRAINING_REQUESTED_QUEUE,
     TRAINING_COMPLETED_QUEUE,
     MODEL_DEPLOYED_QUEUE,
@@ -130,6 +132,22 @@ def publish_training_requested(
             batch_id=batch_id,
             dataset_version=dataset_version,
             job_id=job_id,
+        ),
+    )
+
+
+def publish_data_ingested(
+    batch_id: int,
+    dataset_version: str,
+    client_id: str | None = None,
+) -> None:
+    publish_message(
+        DATA_INGESTED_QUEUE,
+        _build_message(
+            "data_ingested",
+            batch_id=batch_id,
+            dataset_version=dataset_version,
+            client_id=client_id,
         ),
     )
 

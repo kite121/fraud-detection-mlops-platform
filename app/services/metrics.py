@@ -96,6 +96,43 @@ ACTIVE_MODEL_VERSION = Gauge(
     ["model_version"],
 )
 
+
+def observe_training_job_queued() -> None:
+    TRAINING_JOBS_TOTAL.labels(status="queued").inc()
+
+
+def observe_training_job_completed() -> None:
+    TRAINING_JOBS_TOTAL.labels(status="completed").inc()
+
+
+def observe_training_job_failed() -> None:
+    TRAINING_JOBS_TOTAL.labels(status="failed").inc()
+    FAILED_JOBS_TOTAL.inc()
+
+
+def observe_training_duration(duration_seconds: float) -> None:
+    TRAINING_DURATION_SECONDS.observe(duration_seconds)
+
+
+def observe_model_registered(status: str) -> None:
+    MODELS_REGISTERED_TOTAL.labels(status=status).inc()
+
+
+def observe_inference_request() -> None:
+    INFERENCE_REQUESTS_TOTAL.inc()
+
+
+def observe_inference_duration(duration_seconds: float) -> None:
+    INFERENCE_DURATION_SECONDS.observe(duration_seconds)
+
+
+def observe_inference_error() -> None:
+    INFERENCE_ERRORS_TOTAL.inc()
+
+
+def set_active_model_version(model_version: str) -> None:
+    ACTIVE_MODEL_VERSION.labels(model_version=model_version).set(1)
+
 # -+--  /metrics endpoint  --+-
 
 @router.get("/metrics", include_in_schema=False)

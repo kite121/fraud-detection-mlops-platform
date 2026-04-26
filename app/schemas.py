@@ -68,3 +68,22 @@ class PredictResponse(BaseModel):
     prediction: int
     fraud_score: float
     model_version: str
+
+
+class MonitorRequest(BaseModel):
+    reference_batch_id: int
+    current_batch_id: int | None = None
+    dataset_version: str | None = None
+    psi_threshold: float = 0.2
+    positive_rate_threshold: float = 0.05
+
+
+class MonitorResponse(BaseModel):
+    status: str
+    reference_batch_id: int
+    current_batch_id: int
+    degraded: bool
+    max_feature_psi: float
+    positive_rate_delta: float
+    reference_profile_path: str
+    drift_result_path: str
