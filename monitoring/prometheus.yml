@@ -11,6 +11,10 @@ scrape_configs:
     static_configs:
       - targets: ["inference-service:8000"]
 
+  - job_name: "worker-service"
+    static_configs:
+      - targets: ["worker-service:8002"]
+
   - job_name: "prometheus"
     static_configs:
       - targets: ["localhost:9090"]

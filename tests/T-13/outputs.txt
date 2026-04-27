@@ -1,0 +1,76 @@
+[Commands executed]
+
+1. Submitted two POST /train requests almost simultaneously using PowerShell background jobs
+2. docker compose logs worker-service --since=5m
+3. GET /jobs/train_81a636284e0f
+4. GET /jobs/train_53a17ed4424d
+
+[Command outputs]
+
+Command:
+Parallel POST /train responses
+
+Output:
+Job 1:
+{
+  "status": "queued",
+  "job_id": "train_81a636284e0f",
+  "message": "training task accepted"
+}
+
+Job 2:
+{
+  "status": "queued",
+  "job_id": "train_53a17ed4424d",
+  "message": "training task accepted"
+}
+
+
+Command:
+docker compose logs worker-service --since=5m
+
+Output:
+worker-service  | [2026-04-27 12:18:53,560: INFO/MainProcess] Task workers.training_worker.train_model_task[80bee261-1fdd-4d3e-90b2-e28741ab6867] received
+worker-service  | [2026-04-27 12:18:53,616: INFO/MainProcess] Task workers.training_worker.train_model_task[f766e5e0-2dbb-44c2-8229-b46bd27235e1] received
+worker-service  | [2026-04-27 12:19:11,732: WARNING/ForkPoolWorker-1] View run training_run at: http://mlflow:5000/#/experiments/1/runs/cfb923b9a4244cadb7783e7d94274c22
+worker-service  | [2026-04-27 12:19:11,908: WARNING/ForkPoolWorker-16] View run training_run at: http://mlflow:5000/#/experiments/1/runs/4ec259fcfdde4c12bdb0831dfd5571db
+
+
+Command:
+GET http://localhost:8000/jobs/train_81a636284e0f
+
+Output:
+{
+  "job_id": "train_81a636284e0f",
+  "job_type": "training",
+  "dataset_version": "v1",
+  "batch_id": 8,
+  "celery_task_id": "80bee261-1fdd-4d3e-90b2-e28741ab6867",
+  "status": "completed",
+  "created_at": "2026-04-27T12:18:53.539488Z",
+  "started_at": "2026-04-27T12:18:53.567950Z",
+  "finished_at": "2026-04-27T12:19:25.742428Z",
+  "error_message": null,
+  "model_version": "v005",
+  "mlflow_run_id": "4ec259fcfdde4c12bdb0831dfd5571db"
+}
+
+
+Command:
+GET http://localhost:8000/jobs/train_53a17ed4424d
+
+Output:
+{
+  "job_id": "train_53a17ed4424d",
+  "job_type": "training",
+  "dataset_version": "v1",
+  "batch_id": 9,
+  "celery_task_id": "f766e5e0-2dbb-44c2-8229-b46bd27235e1",
+  "status": "completed",
+  "created_at": "2026-04-27T12:18:53.610000Z",
+  "started_at": "2026-04-27T12:18:53.765937Z",
+  "finished_at": "2026-04-27T12:19:25.623584Z",
+  "error_message": null,
+  "model_version": "v004",
+  "mlflow_run_id": "cfb923b9a4244cadb7783e7d94274c22"
+}

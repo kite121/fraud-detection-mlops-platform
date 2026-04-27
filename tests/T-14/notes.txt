@@ -1,0 +1,67 @@
+Test ID: T-14
+Test Name: Prometheus metrics after ingest, training, and predict
+Date: 27.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify that Prometheus exposes and updates core platform metrics after API activity, training, and inference.
+
+Preconditions:
+- The platform is running in Docker.
+- Prometheus is available at http://localhost:9090.
+- worker-service metrics endpoint is enabled and scraped by Prometheus.
+- At least one new training run and one new predict request were executed after the metrics fix.
+
+Steps performed:
+1. Rebuilt and restarted ingestion-service, inference-service, worker-service, and prometheus after the metrics fix.
+2. Executed a new training run and a new predict request to generate fresh metric values.
+3. Opened Prometheus and ran queries for HTTP, training, model-registration, inference, and active-model metrics.
+
+Expected result:
+- HTTP request metrics are present.
+- Training job and training duration metrics are present and non-zero after a completed training run.
+- Model registration metrics are present.
+- Inference request and duration metrics are present and non-zero after a predict call.
+- active_model_version_info shows only the currently active model version.
+
+Actual result:
+- http_requests_total returned non-empty results for ingestion-service and inference-service endpoints.
+- training_jobs_total showed both queued=1 and completed=1.
+- training_duration_seconds_count returned 1 and training_duration_seconds_sum returned 32.43245003500033.
+- models_registered_total returned status="validated" with value 1.
+- inference_requests_total returned 1.
+- inference_duration_seconds_count returned 1 and inference_duration_seconds_sum returned 0.03887655300059123.
+- active_model_version_info returned only model_version="v003" with value 1.
+
+Key values / IDs:
+- batch_id:
+- job_id:
+- model_version: v003
+- mlflow_run_id:
+- storage_path:
+- model_path:
+- metrics_path:
+- reference_profile_path:
+- drift_result_path:
+
+Evidence collected:
+- outputs.txt
+- screenshots/prometheus-http-requests-total.png
+- screenshots/prometheus-training-jobs-total.png
+- screenshots/prometheus-training-duration-count.png
+- screenshots/prometheus-training-duration-sum.png
+- screenshots/prometheus-models-registered-total.png
+- screenshots/prometheus-inference-requests-total.png
+- screenshots/prometheus-inference-duration-count.png
+- screenshots/prometheus-inference-duration-sum.png
+- screenshots/prometheus-active-model-version-info.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- The earlier issue with missing worker-originated metrics was fixed by exposing a dedicated Prometheus endpoint from worker-service and scraping it.
+- models_registered_total showing only status="validated" with value 1 is acceptable for this retest: it reflects the latest post-fix training run being registered as a validated model rather than replacing the current best model.
+- active_model_version_info is now correct: only model_version="v003" remains active, so the stale dual-version issue is resolved.

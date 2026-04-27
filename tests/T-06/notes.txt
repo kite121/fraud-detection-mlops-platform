@@ -1,0 +1,56 @@
+Test ID: T-06
+Test Name: MLflow tracking verification
+Date: 26.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify that the completed training run is recorded in MLflow with parameters, dataset metadata, metrics, and model-related artifacts.
+
+Preconditions:
+- Platform stack is running successfully.
+- A training job has completed successfully.
+- The corresponding MLflow run is available in the fraud-detection-training experiment.
+
+Steps performed:
+1. Opened the MLflow UI at http://localhost:5000.
+2. Opened the experiment fraud-detection-training and located the training run.
+3. Verified the logged metrics, parameters, dataset metadata, and artifacts for the run.
+
+Expected result:
+- The completed training run is visible in MLflow.
+- The run contains model parameters, dataset metadata, and evaluation metrics.
+- Model-related artifacts and the preprocessing artifact are present in MLflow.
+
+Actual result:
+- The run was found in experiment fraud-detection-training.
+- Metrics were present, including training_duration_seconds, best_iteration, roc_auc, precision, recall, f1_score, pr_auc, accuracy, and threshold-based metrics.
+- Parameters were present, including CatBoost hyperparameters, batch_id=8, and dataset_version=v1.
+- Artifact-related evidence was present, including dataset_metadata.json, evaluation.json, feature_columns.json, model artifact, and preprocessor artifact.
+
+Key values / IDs:
+- batch_id: 8
+- job_id: train_dcc0e0ceb95b
+- model_version: v002
+- mlflow_run_id: 15aeaca7c41a4318bde0727f99534cdc
+- storage_path:
+- model_path:
+- metrics_path:
+- reference_profile_path:
+- drift_result_path:
+
+Evidence collected:
+- outputs.txt
+- screenshots/mlflow-metrics.png
+- screenshots/mlflow-parameters.png
+- screenshots/mlflow-dataset_metadata.png
+- screenshots/mlflow-artifacts.png
+- screenshots/mlflow-model-and-preprocessor.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- The MLflow UI showed all key evidence required for the training run.
+- The run is linked logically to the completed job and the produced model version.

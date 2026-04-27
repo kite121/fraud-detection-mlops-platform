@@ -1,0 +1,39 @@
+[Commands executed]
+
+1. POST /train
+2. POST /predict
+3. Opened Jaeger UI and searched traces for training and prediction flows
+
+[Command outputs]
+
+Command:
+Jaeger training trace
+
+Output:
+- Trace name: ingestion-service: POST /train
+- Trace ID suffix visible in UI: ff389b3
+- Duration: 43.36s
+- Services involved: ingestion-service, worker-service
+- Total spans: 17
+- Visible nested spans included create_training_job, enqueue_training_task, worker execution, and downstream steps.
+
+
+Command:
+Jaeger training trace details
+
+Output:
+- The trace timeline showed spans in both ingestion-service and worker-service.
+- The worker side contained the long-running execution path, consistent with asynchronous training.
+- This confirms distributed tracing propagation across API -> broker -> worker flow.
+
+
+Command:
+Jaeger prediction trace
+
+Output:
+- Trace name: inference-service: POST /predict
+- Trace ID suffix visible in UI: d472775
+- Duration: 58.09ms
+- Services involved: inference-service
+- Total spans: 8
+- Visible nested spans included predict_fraud, preprocessing, and model_inference.

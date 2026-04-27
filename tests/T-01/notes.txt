@@ -1,0 +1,53 @@
+Test ID: T-01
+Test Name: Platform startup verification
+Date: 26.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify that the full platform stack starts successfully and both API services respond to health checks.
+
+Preconditions:
+- Docker Desktop is installed and running.
+- Project repository is checked out on branch fixed_final_branch.
+- Required local ports are available.
+
+Steps performed:
+1. Started the project stack with docker compose up --build.
+2. Verified container state with docker compose ps -a.
+3. Checked training and inference health endpoints with Invoke-RestMethod.
+
+Expected result:
+- All required containers start without critical errors.
+- Training API /health responds successfully.
+- Inference API /health responds successfully.
+
+Actual result:
+- The full stack started successfully without errors.
+- All required containers were up; minio-init completed and exited with code 0 as expected.
+- Both /health endpoints returned status=ok and db=True.
+
+Key values / IDs:
+- batch_id:
+- job_id:
+- model_version:
+- mlflow_run_id:
+- storage_path:
+- model_path:
+- metrics_path:
+- reference_profile_path:
+- drift_result_path:
+
+Evidence collected:
+- outputs.txt
+- screenshots/compose-up-proof.png
+- screenshots/containers.png
+- screenshots/health-check.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- No startup errors were observed during the test.
+- This test confirms platform availability before functional API testing.

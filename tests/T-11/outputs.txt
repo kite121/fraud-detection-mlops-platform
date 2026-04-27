@@ -1,0 +1,68 @@
+[Commands executed]
+
+1. POST /ingest with degraded_batch.csv
+2. docker compose logs ingestion-service
+3. docker compose logs worker-service
+4. docker exec postgres psql ... SELECT ... FROM training_jobs WHERE job_id = 'train_fcee91c3099e'
+5. GET /jobs/train_fcee91c3099e
+
+[Command outputs]
+
+Command:
+POST http://localhost:8000/ingest
+
+Output:
+{
+  "status": "success",
+  "batch_id": 11,
+  "rows_count": 120000,
+  "storage_path": "s3://raw-data/clients/bank_wrong_test/raw/v1/2026-04-27/tmp95u_a5ak.csv"
+}
+
+
+Command:
+Relevant ingestion-service logs
+
+Output:
+ingestion-service  | INFO:     172.18.0.1:41976 - "POST /ingest HTTP/1.1" 200 OK
+ingestion-service  | [Retraining] Drift exceeded threshold; queued retraining job 'train_fcee91c3099e' for batch 11.
+
+
+Command:
+Relevant worker-service logs
+
+Output:
+worker-service  | [Registry] Registered v003 (ROC-AUC=1.0000, status='best')
+worker-service  | [Storage] Uploading model artifact -> models/v003/model.joblib
+worker-service  | [Storage] Uploading metrics -> models/v003/metrics.json
+worker-service  | [Storage] Uploading preprocessor -> models/v003/preprocessor.joblib
+worker-service  | [Storage] All artifacts for v003 uploaded to bucket 'models'.
+worker-service  | [2026-04-27 11:48:45,594: INFO/ForkPoolWorker-16] Task workers.retraining_worker.retrain_model_task[12960633-c31e-4fe3-9789-ed484728c949] succeeded in 11.618276359999982s: None
+
+
+Command:
+docker exec postgres psql -U mlops_user -d mlops_db -c "SELECT job_id, job_type, batch_id, dataset_version, status, created_at, started_at, finished_at, model_version, mlflow_run_id FROM training_jobs WHERE job_id = 'train_fcee91c3099e';"
+
+Output:
+ job_id             | job_type   | batch_id | dataset_version | status    | created_at                    | started_at                    | finished_at                   | model_version | mlflow_run_id
+ train_fcee91c3099e | retraining | 11       | v1              | completed | 2026-04-27 11:48:33.932707+00 | 2026-04-27 11:48:34.054459+00 | 2026-04-27 11:48:45.580605+00 | v003          | 09ef4a955dd84efa9f73fd2da2676b7e
+
+
+Command:
+GET http://localhost:8000/jobs/train_fcee91c3099e
+
+Output:
+{
+  "job_id": "train_fcee91c3099e",
+  "job_type": "retraining",
+  "dataset_version": "v1",
+  "batch_id": 11,
+  "celery_task_id": "12960633-c31e-4fe3-9789-ed484728c949",
+  "status": "completed",
+  "created_at": "2026-04-27T11:48:33.932707Z",
+  "started_at": "2026-04-27T11:48:34.054459Z",
+  "finished_at": "2026-04-27T11:48:45.580605Z",
+  "error_message": null,
+  "model_version": "v003",
+  "mlflow_run_id": "09ef4a955dd84efa9f73fd2da2676b7e"
+}

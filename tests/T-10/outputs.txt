@@ -1,0 +1,48 @@
+[Commands executed]
+
+1. POST /ingest
+2. docker compose logs ingestion-service --since=3m
+3. Reviewed the auto-monitoring log output
+
+[Command outputs]
+
+Command:
+POST http://localhost:8000/ingest
+
+Output:
+{
+  "status": "success",
+  "batch_id": 10,
+  "rows_count": 1500000,
+  "storage_path": "s3://raw-data/clients/bank_test/raw/v1/2026-04-26/tmpq552cs6_.csv"
+}
+
+
+Command:
+docker compose logs ingestion-service --since=3m
+
+Output:
+ingestion-service  | INFO:     172.18.0.10:41714 - "GET /metrics HTTP/1.1" 200 OK
+ingestion-service  | INFO:     172.18.0.10:52790 - "GET /metrics HTTP/1.1" 200 OK
+ingestion-service  | INFO:     172.18.0.10:41874 - "GET /metrics HTTP/1.1" 200 OK
+ingestion-service  | INFO:     172.18.0.1:54124 - "POST /ingest HTTP/1.1" 200 OK
+ingestion-service  | INFO:     172.18.0.10:58640 - "GET /metrics HTTP/1.1" 200 OK
+ingestion-service  | [Retraining] Drift below threshold; no retraining needed for batch 10.
+ingestion-service  | INFO:     172.18.0.10:41568 - "GET /metrics HTTP/1.1" 200 OK
+ingestion-service  | INFO:     172.18.0.10:45508 - "GET /metrics HTTP/1.1" 200 OK
+ingestion-service  | INFO:     172.18.0.10:40474 - "GET /metrics HTTP/1.1" 200 OK
+ingestion-service  | INFO:     172.18.0.10:38340 - "GET /metrics HTTP/1.1" 200 OK
+ingestion-service  | INFO:     172.18.0.10:54544 - "GET /metrics HTTP/1.1" 200 OK
+ingestion-service  | INFO:     172.18.0.10:57964 - "GET /metrics HTTP/1.1" 200 OK
+ingestion-service  | INFO:     172.18.0.10:41692 - "GET /metrics HTTP/1.1" 200 OK
+ingestion-service  | INFO:     172.18.0.10:33894 - "GET /metrics HTTP/1.1" 200 OK
+
+
+Command:
+Log interpretation
+
+Output:
+- Ingest completed successfully for batch 10.
+- The listener reacted automatically after data_ingested.
+- Monitoring completed and drift stayed below threshold.
+- Retraining was not required.

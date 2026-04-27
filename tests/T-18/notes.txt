@@ -1,0 +1,54 @@
+Test ID: T-18
+Test Name: Fault tolerance - restart worker-service
+Date: 27.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify that after restarting worker-service, the platform can still accept and complete a new training job.
+
+Preconditions:
+- The platform is running in Docker.
+- worker-service is healthy before restart.
+- A valid training batch already exists and can be reused for a new training job.
+
+Steps performed:
+1. Checked worker-service status, then restarted worker-service with docker compose restart.
+2. Verified from logs that the worker reconnected to RabbitMQ and reached the ready state.
+3. Submitted a new training job after the restart and confirmed it completed successfully.
+
+Expected result:
+- worker-service restarts successfully and returns to ready state.
+- A new training job submitted after restart is accepted and processed normally.
+- Worker logs confirm execution of the new job after restart.
+
+Actual result:
+- worker-service was running before restart, restarted successfully, and came back up with status Up.
+- Worker logs after restart showed RabbitMQ connection and celery ready state.
+- A new training job was submitted and completed successfully.
+- The post-restart job produced model_version v008 and a valid MLflow run id.
+
+Key values / IDs:
+- batch_id: 8
+- job_id: train_1fa42ea75f03
+- model_version: v008
+- mlflow_run_id: 61134ed187504d4eb7bf8d72bb629a7f
+- storage_path:
+- model_path:
+- metrics_path:
+- reference_profile_path:
+- drift_result_path:
+
+Evidence collected:
+- outputs.txt
+- screenshots/worker-restart-sequence.png
+- screenshots/worker-restart-job-status.png
+- screenshots/worker-restart-job-logs.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- Celery emitted a standard warning about running as root inside the container; this did not affect functionality.
+- The Git-related MLflow warning remained non-blocking and did not prevent post-restart training completion.

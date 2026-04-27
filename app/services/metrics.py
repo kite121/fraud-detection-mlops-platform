@@ -13,6 +13,8 @@ Usage in main.py:
     instrument_app(app)
 """
 
+import os
+import threading
 import time
 
 from fastapi import APIRouter, Request, Response
@@ -22,6 +24,7 @@ from prometheus_client import (
     Gauge,
     Histogram,
     generate_latest,
+    start_http_server,
 )
 
 router = APIRouter()
@@ -96,6 +99,10 @@ ACTIVE_MODEL_VERSION = Gauge(
     ["model_version"],
 )
 
+_worker_metrics_server_started = False
+_worker_metrics_lock = threading.Lock()
+_active_model_version_label: str | None = None
+
 
 def observe_training_job_queued() -> None:
     TRAINING_JOBS_TOTAL.labels(status="queued").inc()
@@ -131,7 +138,34 @@ def observe_inference_error() -> None:
 
 
 def set_active_model_version(model_version: str) -> None:
+    global _active_model_version_label
+
+    if _active_model_version_label and _active_model_version_label != model_version:
+        try:
+            ACTIVE_MODEL_VERSION.remove(_active_model_version_label)
+        except KeyError:
+            pass
+
     ACTIVE_MODEL_VERSION.labels(model_version=model_version).set(1)
+    _active_model_version_label = model_version
+
+
+def start_worker_metrics_server() -> None:
+    """
+    Starts a lightweight Prometheus HTTP server inside worker-service.
+
+    This is needed because training and model-registration metrics are produced
+    in Celery workers rather than in the FastAPI API processes.
+    """
+    global _worker_metrics_server_started
+
+    with _worker_metrics_lock:
+        if _worker_metrics_server_started:
+            return
+
+        port = int(os.getenv("WORKER_METRICS_PORT", "8002"))
+        start_http_server(port)
+        _worker_metrics_server_started = True
 
 # -+--  /metrics endpoint  --+-
 

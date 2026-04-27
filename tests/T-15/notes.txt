@@ -1,0 +1,54 @@
+Test ID: T-15
+Test Name: Jaeger distributed tracing for training and prediction flows
+Date: 27.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify that Jaeger captures distributed traces for the training flow and inference traces for the prediction flow.
+
+Preconditions:
+- The platform is running in Docker.
+- Jaeger is available at http://localhost:16686.
+- Tracing is enabled in ingestion-service, worker-service, and inference-service.
+
+Steps performed:
+1. Executed a new POST /train request and inspected the resulting trace in Jaeger.
+2. Executed a new POST /predict request and inspected the resulting trace in Jaeger.
+3. Verified that the trace details contained the expected spans for training and prediction flows.
+
+Expected result:
+- Jaeger shows a distributed trace for POST /train across API and worker services.
+- Jaeger shows an inference trace for POST /predict inside inference-service.
+- Trace details include nested spans corresponding to the main pipeline steps.
+
+Actual result:
+- Jaeger displayed a training trace for POST /train with 17 spans across ingestion-service and worker-service.
+- The training trace included orchestration and worker-side execution spans.
+- Jaeger displayed a prediction trace for POST /predict inside inference-service.
+- The prediction trace included spans for predict_fraud, preprocessing, and model_inference.
+
+Key values / IDs:
+- batch_id:
+- job_id:
+- model_version: v003
+- mlflow_run_id:
+- storage_path:
+- model_path:
+- metrics_path:
+- reference_profile_path:
+- drift_result_path:
+
+Evidence collected:
+- outputs.txt
+- screenshots/jaeger-training-trace-list.png
+- screenshots/jaeger-training-trace-details.png
+- screenshots/jaeger-prediction-trace-details.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- The first inference trace candidate initially captured only GET /metrics; this was discarded and replaced with the correct POST /predict trace.
+- The training trace is particularly strong evidence because it spans both ingestion-service and worker-service.

@@ -1,0 +1,54 @@
+Test ID: T-09
+Test Name: Manual monitoring / drift check via POST /monitor
+Date: 26.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify that the monitoring endpoint compares a reference batch against a current batch and stores drift artifacts in MinIO.
+
+Preconditions:
+- The platform is running in Docker.
+- A reference batch has already been ingested and is available as batch_id 8.
+- Training API docs are available at http://localhost:8000/docs.
+
+Steps performed:
+1. Uploaded the same dataset again through POST /ingest to create a new current batch.
+2. Executed POST /monitor with reference_batch_id=8 and current_batch_id=9.
+3. Verified that monitoring artifacts were created in the MinIO bucket monitoring-artifacts.
+
+Expected result:
+- The monitoring endpoint completes successfully.
+- The response includes a drift verdict and artifact paths.
+- Monitoring artifacts are stored in MinIO.
+
+Actual result:
+- The current batch was ingested successfully as batch_id 9.
+- POST /monitor returned status completed for reference batch 8 and current batch 9.
+- The verdict was degraded=false with max_feature_psi=0 and positive_rate_delta=0.
+- Reference profile and drift result JSON artifacts were created in MinIO.
+
+Key values / IDs:
+- batch_id: 9
+- job_id:
+- model_version:
+- mlflow_run_id:
+- storage_path: s3://raw-data/clients/bank_test/raw/v1/2026-04-26/tmpjzydg87s.csv
+- model_path:
+- metrics_path:
+- reference_profile_path: s3://monitoring-artifacts/reference-profiles/v1/batch_8_20260426T190741Z.json
+- drift_result_path: s3://monitoring-artifacts/drift-results/v1/reference_8/current_9_20260426T190741Z.json
+
+Evidence collected:
+- outputs.txt
+- screenshots/monitor-current-batch-ingest.png
+- screenshots/monitor-response.png
+- screenshots/minio-monitoring-artifacts.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- The same CSV file was used for both reference and current batches.
+- Because the datasets were identical, the monitoring verdict was clean: degraded=false, PSI=0, positive_rate_delta=0.

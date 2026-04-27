@@ -1,0 +1,50 @@
+Test ID: T-04
+Test Name: Training job lifecycle verification
+Date: 26.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify that a training job created by POST /train can be queried through GET /jobs/{job_id} and reaches a terminal state with the expected metadata.
+
+Preconditions:
+- Platform stack is running successfully.
+- A training job has already been created through POST /train.
+- job_id train_dcc0e0ceb95b is available from T-03.
+
+Steps performed:
+1. Called GET /jobs/train_dcc0e0ceb95b after the asynchronous training request.
+2. Inspected the returned job metadata and final status.
+3. Recorded the resulting model_version and mlflow_run_id.
+
+Expected result:
+- GET /jobs/{job_id} returns the current job lifecycle state.
+- After successful completion, the response contains completed status, model_version, and mlflow_run_id.
+
+Actual result:
+- GET /jobs/train_dcc0e0ceb95b returned status=completed.
+- The response contained batch_id=8, dataset_version=v1, celery_task_id, model_version=v002, and mlflow_run_id=15aeaca7c41a4318bde0727f99534cdc.
+- The intermediate running state was not captured because the training job completed very quickly.
+
+Key values / IDs:
+- batch_id: 8
+- job_id: train_dcc0e0ceb95b
+- model_version: v002
+- mlflow_run_id: 15aeaca7c41a4318bde0727f99534cdc
+- storage_path:
+- model_path:
+- metrics_path:
+- reference_profile_path:
+- drift_result_path:
+
+Evidence collected:
+- outputs.txt
+- screenshots/job-completed-response.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- The training job completed too quickly to capture the running state in a separate screenshot.
+- Lifecycle timing is still evidenced by created_at, started_at, and finished_at.

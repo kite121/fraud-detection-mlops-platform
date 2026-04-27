@@ -1,0 +1,58 @@
+Test ID: T-20
+Test Name: Fault tolerance - restart RabbitMQ and recover event-driven flows
+Date: 27.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify that after restarting RabbitMQ, the platform recovers broker connectivity and continues to process both Celery training jobs and event-driven ingest listeners.
+
+Preconditions:
+- The platform is running in Docker.
+- RabbitMQ is healthy before restart.
+- The reconnect fix for custom broker consumers has been applied and ingestion-service rebuilt.
+
+Steps performed:
+1. Restarted RabbitMQ and verified broker startup logs and service status.
+2. Triggered a new POST /train scenario after broker restart and confirmed worker-side recovery and successful job completion.
+3. Rebuilt ingestion-service with the reconnect fix, restarted RabbitMQ again, then triggered a new POST /ingest and verified listener reconnection plus automatic data_ingested handling.
+
+Expected result:
+- RabbitMQ restarts successfully.
+- Worker-service reconnects to the broker and continues processing new training jobs.
+- ingestion-service background listener reconnects automatically after broker restart and continues handling data_ingested events.
+
+Actual result:
+- RabbitMQ restarted successfully and returned to a healthy/running state.
+- worker-service temporarily lost the broker connection, retried automatically, reconnected, and successfully completed a new training job.
+- The post-restart training job train_2790f6438361 completed successfully with model_version v010.
+- After the reconnect fix, ingestion-service logs showed the data_ingested listener disconnecting, retrying with backoff, reconnecting, and then processing a new ingest event.
+- The restored listener automatically detected drift and queued retraining job train_f5ae0258997d for batch 12.
+
+Key values / IDs:
+- batch_id: 8; 12
+- job_id: train_2790f6438361; train_f5ae0258997d
+- model_version: v010
+- mlflow_run_id: a9df16b6c35f49d5b85e921338512360
+- storage_path:
+- model_path:
+- metrics_path:
+- reference_profile_path:
+- drift_result_path:
+
+Evidence collected:
+- outputs.txt
+- screenshots/rabbitmq-restart-sequence.png
+- screenshots/rabbitmq-restart-logs.png
+- screenshots/rabbitmq-restart-job-status.png
+- screenshots/rabbitmq-restart-worker-logs.png
+- screenshots/ingestion-listener-reconnect-after-rabbitmq-restart.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- RabbitMQ emitted several deprecation warnings related to management metrics and queue features; these were non-blocking and did not prevent recovery.
+- worker-service correctly showed temporary connection-refused errors during broker downtime; these are expected during restart and are acceptable because the worker reconnected and completed work afterwards.
+- The critical bug before the fix was that the custom data_ingested listener died permanently after broker restart. The new logs confirm that it now reconnects and resumes processing.

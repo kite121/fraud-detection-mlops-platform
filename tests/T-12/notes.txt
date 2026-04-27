@@ -1,0 +1,54 @@
+Test ID: T-12
+Test Name: Auto-deploy of new best model to inference-service
+Date: 27.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify that when a newly trained model becomes best, inference-service automatically reloads it after the model_deployed event and starts serving predictions with the new model version.
+
+Preconditions:
+- The platform is running in Docker.
+- The previous active inference model was v001, confirmed by earlier predict responses.
+- Retraining in T-11 produced a new best model v003.
+- inference-service listener for model_deployed events is active.
+
+Steps performed:
+1. Collected inference-service logs after retraining promoted model v003 to best.
+2. Verified that inference-service received the model_deployed event and reloaded its cache.
+3. Executed POST /predict and compared the returned model_version with the previous deployed version.
+
+Expected result:
+- inference-service receives a model_deployed event for the new best model.
+- The local cache is reloaded automatically without calling POST /reload.
+- A new predict response returns the new model_version.
+
+Actual result:
+- inference-service logged: Received model_deployed event for 'v003'; reloading cache.
+- A subsequent POST /predict returned model_version v003.
+- This confirms that the service switched from the previously served v001 model to the new best model automatically.
+
+Key values / IDs:
+- batch_id: 11
+- job_id: train_fcee91c3099e
+- model_version: v003
+- mlflow_run_id: 09ef4a955dd84efa9f73fd2da2676b7e
+- storage_path:
+- model_path:
+- metrics_path:
+- reference_profile_path:
+- drift_result_path:
+
+Evidence collected:
+- outputs.txt
+- screenshots/predict-before-auto-deploy.png
+- screenshots/inference-service-model-deployed-logs.png
+- screenshots/predict-after-auto-deploy.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- The previous predict response from T-07/T-08 showed model_version v001 and is reused here as the before-state evidence.
+- No manual POST /reload was used in this test; the switch happened through the event-driven deployment flow.
