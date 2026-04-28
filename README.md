@@ -48,23 +48,55 @@ This repository is structured exactly around that idea: a small but realistic ML
 ## Architecture
 
 ```mermaid
-flowchart TD
-    A[Client CSV upload] --> B[Ingestion API]
-    B --> C[CSV validation]
-    C --> D[Raw storage in MinIO]
-    D --> E[Batch metadata in PostgreSQL]
-    E --> F[Training request]
-    F --> G[Training dataset preparation]
-    G --> H[Preprocessing and feature engineering]
-    H --> I[Model training]
-    I --> J[Evaluation]
-    J --> K[MLflow tracking]
-    J --> L[Model registry]
-    L --> M[Best model selection]
-    M --> N[Inference service]
-    N --> O[POST /predict]
-    O --> P[Monitoring and drift checks]
-    P --> Q[Auto-retraining trigger]
+flowchart TB
+    U[Client / User]
+
+    subgraph API[Application Layer]
+        TA[Training API]
+        IA[Inference API]
+    end
+
+    subgraph ORCH[Orchestration Layer]
+        R[RabbitMQ]
+        W[Worker Service]
+    end
+
+    subgraph DATA[Storage and Tracking Layer]
+        DB[PostgreSQL]
+        M[MinIO]
+        ML[MLflow]
+    end
+
+    subgraph OBS[Observability Layer]
+        P[Prometheus]
+        J[Jaeger]
+    end
+
+    U -->|HTTP: ingest, train, jobs, monitor| TA
+    U -->|HTTP: predict| IA
+
+    TA -->|store metadata| DB
+    TA -->|store raw batches| M
+    TA -->|publish jobs / events| R
+
+    R -->|training / retraining tasks| W
+
+    W -->|update jobs / registry| DB
+    W -->|store models, metrics, drift artifacts| M
+    W -->|log runs, params, metrics| ML
+    W -->|publish deployment / retraining events| R
+
+    IA -->|read best model metadata| DB
+    IA -->|load model artifacts| M
+    R -.->|model_deployed event| IA
+
+    P -.->|runtime metrics| TA
+    P -.->|runtime metrics| IA
+    P -.->|runtime metrics| W
+
+    J -.->|distributed traces| TA
+    J -.->|distributed traces| IA
+    J -.->|distributed traces| W
 ```
 
 ## Platform layers
@@ -325,6 +357,7 @@ When the stack is up, the important endpoints are:
 
 - training API: [http://localhost:8000](http://localhost:8000)
 - inference API: [http://localhost:8001](http://localhost:8001)
+- worker metrics endpoint: [http://localhost:8002/metrics](http://localhost:8002/metrics)
 - MLflow UI: [http://localhost:5000](http://localhost:5000)
 - MinIO Console: [http://localhost:9001](http://localhost:9001)
 - RabbitMQ Management: [http://localhost:15672](http://localhost:15672)
@@ -337,7 +370,7 @@ This section is the recommended end-to-end demo flow for the current branch.
 
 ### 1. Prepare `.env`
 
-Create `.env` from `.env.example` and fill in the required values.
+Copy `.env.example` to `.env` and fill in the required values.
 
 Minimal local example:
 
@@ -400,13 +433,18 @@ curl http://localhost:8001/health
 
 ### 4. Upload a dataset batch
 
-Use the sample file in the repository:
+Use any CSV file from the following dataset:
+
+- [CiferAI/Cifer-Fraud-Detection-Dataset-AF](https://huggingface.co/datasets/CiferAI/Cifer-Fraud-Detection-Dataset-AF)
+
+Any CSV file from that dataset can be used to verify the service locally. Replace
+`<path-to-csv-file>` below with the actual path to the downloaded file.
 
 ```bash
 curl -X POST http://localhost:8000/ingest \
   -F "client_id=test-client" \
   -F "dataset_version=v1" \
-  -F "file=@test_valid.csv"
+  -F "file=@<path-to-csv-file>"
 ```
 
 Expected response:
@@ -424,7 +462,7 @@ Keep the returned `batch_id`.
 curl -X POST http://localhost:8000/train \
   -H "Content-Type: application/json" \
   -d '{
-    "batch_id": 1,
+    "batch_id": <batch_id-from-step-4>,
     "notes": "manual demo run"
   }'
 ```
@@ -494,14 +532,15 @@ Expected response:
 
 ### 9. Run monitoring manually
 
-You can run one explicit drift check through the training API:
+You can run one explicit drift check through the training API. This requires two
+already ingested batches: one reference batch and one current batch.
 
 ```bash
 curl -X POST http://localhost:8000/monitor \
   -H "Content-Type: application/json" \
   -d '{
-    "reference_batch_id": 1,
-    "current_batch_id": 2
+    "reference_batch_id": <reference_batch_id>,
+    "current_batch_id": <current_batch_id>
   }'
 ```
 
