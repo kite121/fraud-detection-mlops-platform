@@ -7,6 +7,11 @@ from uuid import uuid4
 from sqlalchemy import select
 
 from app.db import SessionLocal
+from app.services.metrics import (
+    observe_training_job_completed,
+    observe_training_job_failed,
+    observe_training_job_queued,
+)
 from app.models import TrainingJob
 
 
@@ -49,6 +54,7 @@ def create_training_job(
         session.add(entry)
         session.commit()
         session.refresh(entry)
+        observe_training_job_queued()
 
         return TrainingJobRecord(
             job_id=entry.job_id,
@@ -140,6 +146,7 @@ def mark_job_completed(
         entry.model_version = model_version
         entry.mlflow_run_id = mlflow_run_id
         session.commit()
+        observe_training_job_completed()
     finally:
         session.close()
 
@@ -154,6 +161,7 @@ def mark_job_failed(job_id: str, error_message: str) -> None:
         entry.finished_at = datetime.now(timezone.utc)
         entry.error_message = error_message
         session.commit()
+        observe_training_job_failed()
     finally:
         session.close()
 

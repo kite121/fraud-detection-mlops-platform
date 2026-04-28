@@ -1,0 +1,42 @@
+[Commands executed]
+
+1. Opened RabbitMQ management UI at http://localhost:15672
+2. Navigated to Queues and Streams
+3. Reviewed queue list, message totals, and message rates
+
+[Command outputs]
+
+Command:
+RabbitMQ Queues and Streams page
+
+Output:
+- Visible project queues:
+  - data_ingested
+  - model_deployed
+  - retraining_requested
+  - training
+  - training_completed
+  - training_requested
+- Visible Celery/runtime queues:
+  - celery@...celery.pidbox
+  - celeryev....
+  - several generated reply/result queues
+
+
+Command:
+Queue activity inspection
+
+Output:
+- training_requested showed accumulated messages (Ready/Total values visible in UI).
+- training_completed showed accumulated messages (Ready/Total values visible in UI).
+- retraining_requested showed accumulated messages.
+- Celery event queue showed non-zero incoming / deliver-get rates.
+
+
+Command:
+Overall conclusion
+
+Output:
+- RabbitMQ management UI confirms that the broker is running.
+- Expected queues for training, retraining, deployment, and ingest events are present.
+- Message counts and rates provide evidence of real broker activity during the test session.

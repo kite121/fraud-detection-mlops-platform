@@ -13,6 +13,8 @@ Usage in main.py:
     instrument_app(app)
 """
 
+import os
+import threading
 import time
 
 from fastapi import APIRouter, Request, Response
@@ -22,6 +24,7 @@ from prometheus_client import (
     Gauge,
     Histogram,
     generate_latest,
+    start_http_server,
 )
 
 router = APIRouter()
@@ -63,12 +66,12 @@ TRAINING_JOBS_TOTAL = Counter(
 
 FAILED_JOBS_TOTAL = Counter(
     "training_jobs_failed_total",
-    "Total number of training jobs that ended in the "failed" state.",
+    'Total number of training jobs that ended in the "failed" state.',
 )
 
 MODELS_REGISTERED_TOTAL = Counter(
     "models_registered_total",
-    "Total number of model versions registered in the "model_registry" table.",
+    'Total number of model versions registered in the "model_registry" table.',
     ["status"],   # best | validated
 )
 
@@ -95,6 +98,74 @@ ACTIVE_MODEL_VERSION = Gauge(
     "Metadata about the currently loaded model (always 1, labels carry the info).",
     ["model_version"],
 )
+
+_worker_metrics_server_started = False
+_worker_metrics_lock = threading.Lock()
+_active_model_version_label: str | None = None
+
+
+def observe_training_job_queued() -> None:
+    TRAINING_JOBS_TOTAL.labels(status="queued").inc()
+
+
+def observe_training_job_completed() -> None:
+    TRAINING_JOBS_TOTAL.labels(status="completed").inc()
+
+
+def observe_training_job_failed() -> None:
+    TRAINING_JOBS_TOTAL.labels(status="failed").inc()
+    FAILED_JOBS_TOTAL.inc()
+
+
+def observe_training_duration(duration_seconds: float) -> None:
+    TRAINING_DURATION_SECONDS.observe(duration_seconds)
+
+
+def observe_model_registered(status: str) -> None:
+    MODELS_REGISTERED_TOTAL.labels(status=status).inc()
+
+
+def observe_inference_request() -> None:
+    INFERENCE_REQUESTS_TOTAL.inc()
+
+
+def observe_inference_duration(duration_seconds: float) -> None:
+    INFERENCE_DURATION_SECONDS.observe(duration_seconds)
+
+
+def observe_inference_error() -> None:
+    INFERENCE_ERRORS_TOTAL.inc()
+
+
+def set_active_model_version(model_version: str) -> None:
+    global _active_model_version_label
+
+    if _active_model_version_label and _active_model_version_label != model_version:
+        try:
+            ACTIVE_MODEL_VERSION.remove(_active_model_version_label)
+        except KeyError:
+            pass
+
+    ACTIVE_MODEL_VERSION.labels(model_version=model_version).set(1)
+    _active_model_version_label = model_version
+
+
+def start_worker_metrics_server() -> None:
+    """
+    Starts a lightweight Prometheus HTTP server inside worker-service.
+
+    This is needed because training and model-registration metrics are produced
+    in Celery workers rather than in the FastAPI API processes.
+    """
+    global _worker_metrics_server_started
+
+    with _worker_metrics_lock:
+        if _worker_metrics_server_started:
+            return
+
+        port = int(os.getenv("WORKER_METRICS_PORT", "8002"))
+        start_http_server(port)
+        _worker_metrics_server_started = True
 
 # -+--  /metrics endpoint  --+-
 

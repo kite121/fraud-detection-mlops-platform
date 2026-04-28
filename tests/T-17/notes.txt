@@ -1,0 +1,57 @@
+Test ID: T-17
+Test Name: Artifact and metadata consistency across DB, MLflow, API, and MinIO
+Date: 27.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify end-to-end consistency of one complete retraining chain across batch metadata, training jobs, model registry, MLflow, API, and MinIO artifacts.
+
+Preconditions:
+- The platform is running in Docker.
+- A completed retraining flow already exists for batch 11 and model v003.
+- MLflow and MinIO UIs are accessible.
+
+Steps performed:
+1. Queried PostgreSQL for batch_metadata, training_jobs, and model_registry records related to batch 11 / job train_fcee91c3099e / model v003.
+2. Verified that the corresponding MLflow run existed and contained metrics and metadata.
+3. Verified that the expected MinIO model artifacts existed and matched the model_registry paths, then checked the API response for the same job.
+
+Expected result:
+- The same batch_id, job_id, model_version, and mlflow_run_id remain consistent across all layers.
+- storage_path and artifact paths are present and point to real objects in MinIO.
+- API and database return matching information for the same retraining job.
+
+Actual result:
+- batch_metadata record 11 exists for client bank_wrong_test with dataset_version v1 and the expected raw-data storage path.
+- training_jobs record for train_fcee91c3099e exists with job_type retraining, batch_id 11, model_version v003, and mlflow_run_id 09ef4a955dd84efa9f73fd2da2676b7e.
+- model_registry record for v003 exists with training_batch_id 11, status best, matching mlflow_run_id, and artifact paths in MinIO.
+- MLflow run 09ef4a955dd84efa9f73fd2da2676b7e exists and contains metrics and retraining metadata.
+- MinIO contains models/v003/model.joblib, models/v003/metrics.json, and models/v003/preprocessor.joblib.
+- GET /jobs/train_fcee91c3099e returned the same batch_id, model_version, and mlflow_run_id as PostgreSQL.
+
+Key values / IDs:
+- batch_id: 11
+- job_id: train_fcee91c3099e
+- model_version: v003
+- mlflow_run_id: 09ef4a955dd84efa9f73fd2da2676b7e
+- storage_path: s3://raw-data/clients/bank_wrong_test/raw/v1/2026-04-27/tmp95u_a5ak.csv
+- model_path: s3://models/models/v003/model.joblib
+- metrics_path: s3://models/models/v003/metrics.json
+- reference_profile_path:
+- drift_result_path:
+
+Evidence collected:
+- outputs.txt
+- screenshots/postgres-chain-batch-job-registry.png
+- screenshots/mlflow-run-v003-chain.png
+- screenshots/minio-model-v003-chain.png
+- screenshots/api-job-v003-chain.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- The raw-data object path for batch 11 is confirmed through batch_metadata.storage_path; an additional dedicated MinIO raw-data screenshot would be optional but is not required to establish chain consistency.
+- The model_registry status for v003 is best, which is also consistent with the later auto-deploy behavior verified in T-12.

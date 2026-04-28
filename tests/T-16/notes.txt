@@ -1,0 +1,51 @@
+Test ID: T-16
+Test Name: RabbitMQ management UI queues and broker activity
+Date: 27.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify that RabbitMQ management UI shows the expected application queues and evidence of broker activity.
+
+Preconditions:
+- The platform is running in Docker.
+- RabbitMQ management UI is available at http://localhost:15672.
+- Event-driven tests such as ingest, train, monitoring, retraining, and auto-deploy have already been executed in this session.
+
+Steps performed:
+1. Opened RabbitMQ management UI and navigated to the Queues and Streams tab.
+2. Inspected the visible queues created by the application and Celery runtime.
+3. Verified message counters and rates for the main project queues.
+
+Expected result:
+- The management UI shows the expected event and task queues used by the platform.
+- Queue list reflects broker activity through message totals and/or rates.
+
+Actual result:
+- RabbitMQ UI displayed the expected project queues:
+  data_ingested, model_deployed, retraining_requested, training, training_completed, training_requested.
+- Celery internal/runtime queues were also visible, including pidbox/event queues and generated reply queues.
+- Message totals and rates confirmed that broker activity had occurred during prior tests.
+
+Key values / IDs:
+- batch_id:
+- job_id:
+- model_version:
+- mlflow_run_id:
+- storage_path:
+- model_path:
+- metrics_path:
+- reference_profile_path:
+- drift_result_path:
+
+Evidence collected:
+- outputs.txt
+- screenshots/rabbitmq-queues-overview.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- The UI also showed automatically generated Celery/RPC queues, which is expected behavior for Celery worker communication and RPC result backend usage.
+- Some queues were empty at the moment of observation, which is normal after consumers acknowledge messages; the important part is that the queues exist and message totals/rates show prior use.

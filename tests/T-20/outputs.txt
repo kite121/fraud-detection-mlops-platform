@@ -1,0 +1,82 @@
+[Commands executed]
+
+1. docker compose ps rabbitmq
+2. docker compose restart rabbitmq
+3. docker compose ps rabbitmq
+4. docker compose logs rabbitmq --tail=120
+5. POST /train
+6. GET /jobs/train_2790f6438361
+7. docker compose logs worker-service --since=5m
+8. docker compose up --build -d ingestion-service inference-service
+9. docker compose restart rabbitmq
+10. POST /ingest
+11. docker compose logs ingestion-service --since=5m
+
+[Command outputs]
+
+Command:
+docker compose ps rabbitmq
+docker compose restart rabbitmq
+docker compose ps rabbitmq
+
+Output:
+- Before restart: rabbitmq status was Up 27 minutes (healthy).
+- Restart command completed successfully.
+- After restart: rabbitmq status returned as Up and then healthy/running.
+
+
+Command:
+docker compose logs rabbitmq --tail=120
+
+Output:
+- RabbitMQ completed startup successfully.
+- TCP listener restarted on port 5672.
+- Management plugin and related services started successfully.
+- The log contained deprecation warnings for management metrics and queue features, but no fatal startup errors.
+
+
+Command:
+GET http://localhost:8000/jobs/train_2790f6438361
+
+Output:
+{
+  "job_id": "train_2790f6438361",
+  "job_type": "training",
+  "dataset_version": "v1",
+  "batch_id": 8,
+  "celery_task_id": "9959e468-c58f-4233-b622-f5f95882e12b",
+  "status": "completed",
+  "created_at": "2026-04-27T21:03:10.817837Z",
+  "started_at": "2026-04-27T21:03:10.869612Z",
+  "finished_at": "2026-04-27T21:03:40.551015Z",
+  "error_message": null,
+  "model_version": "v010",
+  "mlflow_run_id": "a9df16b6c35f49d5b85e921338512360"
+}
+
+
+Command:
+Relevant worker-service logs after RabbitMQ restart
+
+Output:
+- consumer: Connection to broker lost. Trying to re-establish the connection...
+- Cannot connect to amqp://guest:**@rabbitmq:5672//: [Errno 111] Connection refused.
+- Connected to amqp://guest:**@rabbitmq:5672//
+- Task workers.training_worker.train_model_task[9959e468-c58f-4233-b622-f5f95882e12b] received
+- [Registry] Registered v010 (ROC-AUC=0.5147, status='validated')
+- Task workers.training_worker.train_model_task[...] succeeded in 29.708917173999907s
+
+
+Command:
+Relevant ingestion-service logs after reconnect fix and second RabbitMQ restart
+
+Output:
+- [Retraining] Background listener started for data_ingested events.
+- [Broker] Consumer started for queue 'data_ingested'.
+- [Broker] Consumer for queue 'data_ingested' disconnected: ConnectionClosedByBroker: (320, "CONNECTION_FORCED - broker forced connection closure with reason 'shutdown'"). Reconnecting in 1.0s.
+- [Broker] Consumer for queue 'data_ingested' disconnected: AMQPConnectionError: . Reconnecting in 2.0s.
+- [Broker] Consumer for queue 'data_ingested' disconnected: AMQPConnectionError: . Reconnecting in 4.0s.
+- [Broker] Consumer for queue 'data_ingested' disconnected: AMQPConnectionError: . Reconnecting in 8.0s.
+- [Broker] Consumer started for queue 'data_ingested'.
+- POST /ingest returned 200 OK.
+- [Retraining] Drift exceeded threshold; queued retraining job 'train_f5ae0258997d' for batch 12.

@@ -1,0 +1,52 @@
+Test ID: T-13
+Test Name: Parallel execution of two training jobs
+Date: 27.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify that two training jobs submitted nearly simultaneously are both accepted, processed by the worker, and completed without being lost.
+
+Preconditions:
+- The platform is running in Docker.
+- Valid training batches already exist in the system: batch_id 8 and batch_id 9.
+- Training API docs are available at http://localhost:8000/docs.
+
+Steps performed:
+1. Submitted two POST /train requests nearly simultaneously for batch_id 8 and batch_id 9 using PowerShell background jobs.
+2. Collected worker-service logs after both requests were accepted.
+3. Queried GET /jobs/{job_id} for both jobs to confirm lifecycle completion and resulting metadata.
+
+Expected result:
+- Both training requests are accepted and return status queued.
+- Worker-service receives both training tasks.
+- Both jobs proceed through lifecycle independently and finish successfully.
+
+Actual result:
+- Two different jobs were accepted: train_81a636284e0f and train_53a17ed4424d.
+- worker-service received both Celery tasks nearly simultaneously.
+- Both jobs completed successfully and produced separate model versions and MLflow runs.
+
+Key values / IDs:
+- batch_id: 8, 9
+- job_id: train_81a636284e0f; train_53a17ed4424d
+- model_version: v005; v004
+- mlflow_run_id: 4ec259fcfdde4c12bdb0831dfd5571db; cfb923b9a4244cadb7783e7d94274c22
+- storage_path:
+- model_path:
+- metrics_path:
+- reference_profile_path:
+- drift_result_path:
+
+Evidence collected:
+- outputs.txt
+- screenshots/parallel-train-requests-and-worker-logs.png
+- screenshots/parallel-job-statuses.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- The resulting model versions were assigned in non-batch order (v005 for batch 8 and v004 for batch 9), which is acceptable and consistent with parallel processing and registration timing.
+- Both jobs had different celery_task_id values and were not lost.

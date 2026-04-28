@@ -1,0 +1,35 @@
+[Commands executed]
+
+1. docker compose logs inference-service --since=15m
+2. POST /predict
+3. Compared the returned model_version to the previous predict response from T-07/T-08
+
+[Command outputs]
+
+Command:
+Relevant inference-service logs
+
+Output:
+inference-service  | [Inference] Received model_deployed event for 'v003'; reloading cache.
+
+
+Command:
+POST http://localhost:8001/predict
+
+Output:
+{
+  "prediction": 0,
+  "fraud_score": 0.2844684507286889,
+  "model_version": "v003"
+}
+
+
+Command:
+Reference previous predict response (before auto-deploy)
+
+Output:
+{
+  "prediction": 0,
+  "fraud_score": 0.002369464200783097,
+  "model_version": "v001"
+}

@@ -1,0 +1,43 @@
+[Commands executed]
+
+1. POST /ingest
+2. POST /monitor
+3. Verified monitoring artifacts in MinIO
+
+[Command outputs]
+
+Command:
+POST http://localhost:8000/ingest
+
+Output:
+{
+  "status": "success",
+  "batch_id": 9,
+  "rows_count": 1500000,
+  "storage_path": "s3://raw-data/clients/bank_test/raw/v1/2026-04-26/tmpjzydg87s.csv"
+}
+
+
+Command:
+POST http://localhost:8000/monitor
+
+Output:
+{
+  "status": "completed",
+  "reference_batch_id": 8,
+  "current_batch_id": 9,
+  "degraded": false,
+  "max_feature_psi": 0,
+  "positive_rate_delta": 0,
+  "reference_profile_path": "s3://monitoring-artifacts/reference-profiles/v1/batch_8_20260426T190741Z.json",
+  "drift_result_path": "s3://monitoring-artifacts/drift-results/v1/reference_8/current_9_20260426T190741Z.json"
+}
+
+
+Command:
+MinIO UI verification
+
+Output:
+- Bucket: monitoring-artifacts
+- Verified reference profile artifact for batch 8
+- Verified drift result artifact for reference batch 8 vs current batch 9

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import os
+
 from celery import Celery
 
 from app.config import settings
+from app.services.metrics import start_worker_metrics_server
 from app.services.tracing import instrument_celery_app
 
 
@@ -27,3 +30,6 @@ celery_app.conf.update(
 )
 
 instrument_celery_app()
+
+if os.getenv("APP_ROLE") == "worker":
+    start_worker_metrics_server()

@@ -1,0 +1,48 @@
+Test ID: T-03
+Test Name: Asynchronous training orchestration verification
+Date: 26.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify that POST /train queues a training job asynchronously and returns immediately without waiting for model training to finish.
+
+Preconditions:
+- Platform stack is running successfully.
+- A valid uploaded batch already exists in the system.
+- batch_id 8 is available from the ingest test.
+
+Steps performed:
+1. Opened POST /train in Swagger UI.
+2. Submitted a training request for batch_id=8 with dataset_version=v1 and notes=test.
+3. Observed the API response timing and captured the returned job identifier.
+
+Expected result:
+- API responds quickly without waiting for training completion.
+- Response contains status=queued and a valid job_id.
+
+Actual result:
+- API returned immediately.
+- Response contained status=queued, job_id=train_dcc0e0ceb95b, and message=training task accepted.
+
+Key values / IDs:
+- batch_id: 8
+- job_id: train_dcc0e0ceb95b
+- model_version:
+- mlflow_run_id:
+- storage_path:
+- model_path:
+- metrics_path:
+- reference_profile_path:
+- drift_result_path:
+
+Evidence collected:
+- outputs.txt
+- screenshots/train-queued-response.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- Response returned immediately, confirming non-blocking asynchronous orchestration behaviour.

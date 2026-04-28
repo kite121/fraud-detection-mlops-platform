@@ -1,0 +1,59 @@
+Test ID: T-11
+Test Name: Auto-retraining trigger for degraded batch
+Date: 27.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify that ingesting a degraded batch automatically triggers retraining, creates a retraining job, and runs it in worker-service.
+
+Preconditions:
+- The platform is running in Docker.
+- A current best model exists and can be used as a reference for drift comparison.
+- Auto-monitoring listener is active in ingestion-service.
+- A deliberately drifted dataset file was prepared as degraded_batch.csv.
+
+Steps performed:
+1. Uploaded degraded_batch.csv through POST /ingest.
+2. Checked ingestion-service logs and confirmed that drift exceeded threshold and a retraining job was queued automatically.
+3. Checked worker-service logs, PostgreSQL, and GET /jobs/{job_id} for the retraining job lifecycle and result.
+
+Expected result:
+- The degraded batch is ingested successfully.
+- Auto-monitoring detects drift and queues a retraining job automatically.
+- Worker-service executes retraining successfully.
+- A retraining record is present in training_jobs with the new model version and MLflow run id.
+
+Actual result:
+- POST /ingest completed successfully and created batch_id 11.
+- ingestion-service logged: Drift exceeded threshold; queued retraining job 'train_fcee91c3099e' for batch 11.
+- worker-service executed workers.retraining_worker.retrain_model_task and finished successfully.
+- PostgreSQL confirmed a retraining job record with status completed.
+- GET /jobs/train_fcee91c3099e returned completed with model_version v003 and a valid mlflow_run_id.
+
+Key values / IDs:
+- batch_id: 11
+- job_id: train_fcee91c3099e
+- model_version: v003
+- mlflow_run_id: 09ef4a955dd84efa9f73fd2da2676b7e
+- storage_path: s3://raw-data/clients/bank_wrong_test/raw/v1/2026-04-27/tmp95u_a5ak.csv
+- model_path:
+- metrics_path:
+- reference_profile_path:
+- drift_result_path:
+
+Evidence collected:
+- outputs.txt
+- screenshots/degraded-batch-ingest-response.png
+- screenshots/training-service-retraining-trigger-logs.png
+- screenshots/worker-service-retraining-logs.png
+- screenshots/postgres-retraining-job.png
+- screenshots/retraining-job-response.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- The degraded batch used intentionally shifted feature distributions and a much higher fraud rate to exceed drift thresholds.
+- The new model was registered as v003 with status best according to worker logs.

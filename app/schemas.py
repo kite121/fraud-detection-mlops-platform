@@ -39,13 +39,16 @@ class TrainEnqueueResponse(BaseModel):
 class TrainingJobResponse(BaseModel):
     job_id: str
     job_type: str
-    dataset_version: str
+    dataset_version: str | None = None
+    batch_id: int | None = None
+    celery_task_id: str | None = None
     status: str
     created_at: datetime
     started_at: datetime | None = None
     finished_at: datetime | None = None
     error_message: str | None = None
     model_version: str | None = None
+    mlflow_run_id: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -65,3 +68,22 @@ class PredictResponse(BaseModel):
     prediction: int
     fraud_score: float
     model_version: str
+
+
+class MonitorRequest(BaseModel):
+    reference_batch_id: int
+    current_batch_id: int | None = None
+    dataset_version: str | None = None
+    psi_threshold: float = 0.2
+    positive_rate_threshold: float = 0.05
+
+
+class MonitorResponse(BaseModel):
+    status: str
+    reference_batch_id: int
+    current_batch_id: int
+    degraded: bool
+    max_feature_psi: float
+    positive_rate_delta: float
+    reference_profile_path: str
+    drift_result_path: str

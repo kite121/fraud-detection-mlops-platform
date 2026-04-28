@@ -1,0 +1,37 @@
+[Commands executed]
+
+1. POST /ingest via Swagger UI with client_id=bank_test, dataset_version=v1, and the fraud detection CSV file.
+2. Verified uploaded object in MinIO Console.
+3. Queried PostgreSQL batch_metadata for the latest record.
+
+[Command outputs]
+
+Command:
+POST /ingest
+
+Output:
+{
+  "status": "success",
+  "batch_id": 8,
+  "rows_count": 1500000,
+  "storage_path": "s3://raw-data/clients/bank_test/raw/v1/2026-04-26/tmpg8eded4_.csv"
+}
+
+
+Command:
+MinIO Console verification
+
+Output:
+Bucket: raw-data
+Path: clients/bank_test/raw/v1/2026-04-26/
+Object: tmpg8eded4_.csv
+
+
+Command:
+SELECT id, client_id, dataset_version, file_name, storage_path, rows_count, status, created_at
+FROM batch_metadata
+WHERE id = 8;
+
+Output:
+id | client_id | dataset_version | file_name | storage_path | rows_count | status | created_at
+8 | bank_test | v1 | Cifer-Fraud-Detection-Dataset-AF-part-1-14.csv | s3://raw-data/clients/bank_test/raw/v1/2026-04-26/tmpg8eded4_.csv | 1500000 | uploaded | 2026-04-26 17:52:53.939691+00

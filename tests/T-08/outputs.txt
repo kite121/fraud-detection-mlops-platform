@@ -1,0 +1,38 @@
+[Commands executed]
+
+1. POST /predict via Inference API Swagger UI using a valid transaction payload.
+
+[Command outputs]
+
+Command:
+POST /predict
+
+Output:
+Request payload:
+{
+  "step": 1,
+  "type": "PAYMENT",
+  "amount": 1000,
+  "oldbalanceOrg": 5000,
+  "newbalanceOrig": 4000,
+  "oldbalanceDest": 0,
+  "newbalanceDest": 1000,
+  "isFlaggedFraud": 0
+}
+
+Response:
+{
+  "prediction": 0,
+  "fraud_score": 0.002369464200783097,
+  "model_version": "v001"
+}
+
+
+Command:
+Inference response check
+
+Output:
+Required fields were present in the response:
+- prediction
+- fraud_score
+- model_version

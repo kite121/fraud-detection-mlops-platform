@@ -1,0 +1,46 @@
+[Commands executed]
+
+1. Rebuilt and restarted ingestion-service, inference-service, worker-service, and prometheus
+2. Executed one new training run and one new predict request
+3. Queried Prometheus for core HTTP, training, model-registration, inference, and active-model metrics
+
+[Command outputs]
+
+Command:
+http_requests_total
+
+Output:
+- http_requests_total{endpoint="/metrics",instance="ingestion-service:8000",job="ingestion-service",method="GET",status_code="200"} 78
+- http_requests_total{endpoint="/metrics",instance="inference-service:8000",job="inference-service",method="GET",status_code="200"} 77
+- http_requests_total{endpoint="/jobs/{job_id}",instance="ingestion-service:8000",job="ingestion-service",method="GET",status_code="200"} 2
+- http_requests_total{endpoint="/predict",instance="inference-service:8000",job="inference-service",method="POST",status_code="200"} 1
+- http_requests_total{endpoint="/train",instance="ingestion-service:8000",job="ingestion-service",method="POST",status_code="200"} 1
+- http_requests_total{endpoint="/docs",instance="ingestion-service:8000",job="ingestion-service",method="GET",status_code="200"} 1
+- http_requests_total{endpoint="/openapi.json",instance="ingestion-service:8000",job="ingestion-service",method="GET",status_code="200"} 1
+
+
+Command:
+sum by (status) (training_jobs_total)
+
+Output:
+- {status="queued"} 1
+- {status="completed"} 1
+
+
+Command:
+sum(training_duration_seconds_count)
+sum(training_duration_seconds_sum)
+sum by (status) (models_registered_total)
+sum(inference_requests_total)
+sum(inference_duration_seconds_count)
+sum(inference_duration_seconds_sum)
+active_model_version_info
+
+Output:
+- sum(training_duration_seconds_count) = 1
+- sum(training_duration_seconds_sum) = 32.43245003500033
+- sum by (status) (models_registered_total): {status="validated"} 1
+- sum(inference_requests_total) = 1
+- sum(inference_duration_seconds_count) = 1
+- sum(inference_duration_seconds_sum) = 0.03887655300059123
+- active_model_version_info{instance="inference-service:8000",job="inference-service",model_version="v003"} 1

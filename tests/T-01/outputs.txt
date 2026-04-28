@@ -1,0 +1,64 @@
+[Commands executed]
+
+1. docker compose up --build
+2. docker compose ps -a
+3. Invoke-RestMethod http://localhost:8000/health
+4. Invoke-RestMethod http://localhost:8001/health
+
+[Command outputs]
+
+Command:
+docker compose up --build
+
+Output:
+[+] up 15/15
++ Image dnp_projectmlops-worker-service Built
++ Image dnp_projectmlops-mlflow Built
++ Image dnp_projectmlops-inference-service Built
++ Image dnp_projectmlops-ingestion-service Built
++ Network dnp_projectmlops-mlops-network Created
++ Container postgres Healthy
++ Container minio Healthy
++ Container jaeger Started
++ Container rabbitmq Healthy
++ Container minio-init Exited
++ Container ingestion-service Started
++ Container mlflow Started
++ Container inference-service Started
++ Container worker-service Started
++ Container prometheus Started
+
+
+Command:
+docker compose ps -a
+
+Output:
+NAME                 IMAGE                               COMMAND                  SERVICE             STATUS
+inference-service    dnp_projectmlops-inference-service  "uvicorn app.main:ap…"  inference-service   Up 20 minutes
+ingestion-service    dnp_projectmlops-ingestion-service  "uvicorn app.main:ap…"  ingestion-service   Up 20 minutes
+jaeger               jaegertracing/all-in-one:1.57       "/go/bin/all-in-one-…"  jaeger              Up 20 minutes
+minio                minio/minio:latest                  "/usr/bin/docker-ent…"  minio               Up 20 minutes (healthy)
+minio-init           minio/mc:latest                     "/bin/sh -c ' mc ali…"  minio-init          Exited (0) 20 minutes ago
+mlflow               dnp_projectmlops-mlflow             "mlflow server --hos…"  mlflow              Up 20 minutes
+postgres             postgres:15                         "docker-entrypoint.s…"  postgres            Up 20 minutes (healthy)
+prometheus           prom/prometheus:latest              "/bin/prometheus --c…"  prometheus          Up 20 minutes
+rabbitmq             rabbitmq:3.13-management            "docker-entrypoint.s…"  rabbitmq            Up 20 minutes (healthy)
+worker-service       dnp_projectmlops-worker-service     "celery -A app.celer…"  worker-service      Up 20 minutes
+
+
+Command:
+Invoke-RestMethod http://localhost:8000/health
+
+Output:
+status  db
+------  --
+ok      True
+
+
+Command:
+Invoke-RestMethod http://localhost:8001/health
+
+Output:
+status  db
+------  --
+ok      True

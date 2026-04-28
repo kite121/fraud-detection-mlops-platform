@@ -1,0 +1,24 @@
+[Commands executed]
+
+1. POST /train via Swagger UI with batch_id=8, dataset_version=v1, and notes=test.
+2. Observed that the response returned immediately.
+
+[Command outputs]
+
+Command:
+POST /train
+
+Output:
+{
+  "status": "queued",
+  "job_id": "train_dcc0e0ceb95b",
+  "message": "training task accepted"
+}
+
+
+Command:
+Response timing observation
+
+Output:
+response returned immediately
+

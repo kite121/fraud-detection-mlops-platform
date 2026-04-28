@@ -1,0 +1,50 @@
+Test ID: T-08
+Test Name: Online inference verification
+Date: 26.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify that POST /predict on inference-service accepts a valid transaction payload and returns prediction, fraud_score, and model_version.
+
+Preconditions:
+- Platform stack is running successfully.
+- Inference API is available on localhost:8001.
+- A model is already loaded and available for serving.
+
+Steps performed:
+1. Opened the Inference API Swagger UI.
+2. Sent a valid transaction payload to POST /predict.
+3. Inspected the response fields returned by inference-service.
+
+Expected result:
+- POST /predict returns a successful response.
+- The response contains prediction, fraud_score, and model_version.
+
+Actual result:
+- POST /predict returned prediction=0.
+- The response contained fraud_score=0.002369464200783097.
+- The response contained model_version=v001.
+
+Key values / IDs:
+- batch_id:
+- job_id:
+- model_version: v001
+- mlflow_run_id:
+- storage_path:
+- model_path:
+- metrics_path:
+- reference_profile_path:
+- drift_result_path:
+
+Evidence collected:
+- outputs.txt
+- screenshots/predict-response.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- The inference endpoint responded successfully with all required fields.
+- This test focuses on inference functionality itself, separate from the reload logic covered in T-07.

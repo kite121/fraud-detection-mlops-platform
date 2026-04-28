@@ -1,0 +1,52 @@
+Test ID: T-07
+Test Name: Inference model reload verification
+Date: 26.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify that inference-service can reload the currently deployed best model and use it for prediction requests.
+
+Preconditions:
+- Platform stack is running successfully.
+- Inference API is available on localhost:8001.
+- At least one trained model exists in the registry.
+
+Steps performed:
+1. Opened the Inference API Swagger UI.
+2. Executed POST /reload.
+3. Executed POST /predict and checked the returned prediction payload.
+
+Expected result:
+- POST /reload returns a successful response with the currently served model version.
+- POST /predict returns prediction, fraud_score, and model_version.
+- The same deployed model_version is used consistently across reload and predict.
+
+Actual result:
+- POST /reload returned status=reloaded with model_version=v001.
+- POST /predict returned prediction=0, fraud_score=0.002369464200783097, and model_version=v001.
+- The returned model version was consistent across both endpoints.
+
+Key values / IDs:
+- batch_id:
+- job_id:
+- model_version: v001
+- mlflow_run_id:
+- storage_path:
+- model_path:
+- metrics_path:
+- reference_profile_path:
+- drift_result_path:
+
+Evidence collected:
+- outputs.txt
+- screenshots/reload-response.png
+- screenshots/predict-response.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- Inference-service reloaded and served model version v001.
+- This is consistent with the earlier training outcome where v002 was registered as validated rather than best, so v001 remained the deployed champion model.

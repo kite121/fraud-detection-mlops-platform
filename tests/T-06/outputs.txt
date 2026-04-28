@@ -1,0 +1,65 @@
+[Commands executed]
+
+1. Opened MLflow UI at http://localhost:5000.
+2. Opened experiment fraud-detection-training.
+3. Inspected the completed training run and reviewed metrics, parameters, dataset metadata, and artifacts.
+
+[Command outputs]
+
+Command:
+MLflow UI inspection
+
+Output:
+Experiment: fraud-detection-training
+Run type: training_run
+mlflow_run_id: 15aeaca7c41a4318bde0727f99534cdc
+Related job_id: train_dcc0e0ceb95b
+Related batch_id: 8
+Related model_version: v002
+
+
+Command:
+Metrics and parameters observed
+
+Output:
+Metrics present:
+- training_duration_seconds
+- best_iteration
+- roc_auc
+- precision
+- recall
+- f1_score
+- pr_auc
+- accuracy
+- precision_threshold
+- recall_threshold
+- f1_threshold
+- accuracy_threshold
+
+Parameters present:
+- loss_function=Logloss
+- eval_metric=AUC
+- iterations=300
+- learning_rate=0.1
+- depth=5
+- l2_leaf_reg=3.0
+- subsample=0.8
+- random_strength=1.0
+- bootstrap_type=Bernoulli
+- verbose=False
+- allow_writing_files=False
+- random_seed=42
+- batch_id=8
+- dataset_version=v1
+
+
+Command:
+Artifacts observed
+
+Output:
+Artifacts present in MLflow evidence:
+- dataset_metadata.json
+- evaluation.json
+- feature_columns.json
+- model artifact
+- preprocessor artifact

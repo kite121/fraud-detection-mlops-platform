@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from datetime import datetime, timezone
 from typing import Any, Callable
 
@@ -15,8 +16,10 @@ TRAINING_REQUESTED_QUEUE = "training_requested"
 TRAINING_COMPLETED_QUEUE = "training_completed"
 MODEL_DEPLOYED_QUEUE = "model_deployed"
 RETRAINING_REQUESTED_QUEUE = "retraining_requested"
+DATA_INGESTED_QUEUE = "data_ingested"
 
 REQUIRED_QUEUES = (
+    DATA_INGESTED_QUEUE,
     TRAINING_REQUESTED_QUEUE,
     TRAINING_COMPLETED_QUEUE,
     MODEL_DEPLOYED_QUEUE,
@@ -84,39 +87,58 @@ def consume_queue(
     queue_name: str,
     handler: Callable[[dict[str, Any], dict[str, Any]], None],
 ) -> None:
-    connection = get_connection()
-    channel = connection.channel()
-    declare_queue(channel, queue_name)
-    channel.basic_qos(prefetch_count=1)
+    reconnect_delay_seconds = 1.0
 
-    def callback(
-        ch: pika.adapters.blocking_connection.BlockingChannel,
-        method: Any,
-        properties: pika.BasicProperties,
-        body: bytes,
-    ) -> None:
-        message = json.loads(body.decode("utf-8"))
-        tracer = get_tracer(__name__)
-        context = extract_trace_context(properties.headers or {})
+    while True:
+        connection: pika.BlockingConnection | None = None
+
         try:
-            with tracer.start_as_current_span(
-                f"consume {queue_name}",
-                context=context,
-                kind=SpanKind.CONSUMER,
-                attributes={"messaging.destination": queue_name},
-            ):
-                handler(message, properties.headers or {})
-                ch.basic_ack(delivery_tag=method.delivery_tag)
-        except Exception:
-            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-            raise
+            connection = get_connection()
+            channel = connection.channel()
+            declare_queue(channel, queue_name)
+            channel.basic_qos(prefetch_count=1)
 
-    channel.basic_consume(queue=queue_name, on_message_callback=callback)
-    try:
-        channel.start_consuming()
-    finally:
-        if connection.is_open:
-            connection.close()
+            def callback(
+                ch: pika.adapters.blocking_connection.BlockingChannel,
+                method: Any,
+                properties: pika.BasicProperties,
+                body: bytes,
+            ) -> None:
+                message = json.loads(body.decode("utf-8"))
+                tracer = get_tracer(__name__)
+                context = extract_trace_context(properties.headers or {})
+                try:
+                    with tracer.start_as_current_span(
+                        f"consume {queue_name}",
+                        context=context,
+                        kind=SpanKind.CONSUMER,
+                        attributes={"messaging.destination": queue_name},
+                    ):
+                        handler(message, properties.headers or {})
+                        ch.basic_ack(delivery_tag=method.delivery_tag)
+                except Exception as error:
+                    if ch.is_open:
+                        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+                    print(
+                        f"[Broker] Handler error in queue {queue_name!r}: "
+                        f"{type(error).__name__}: {error}"
+                    )
+
+            channel.basic_consume(queue=queue_name, on_message_callback=callback)
+            print(f"[Broker] Consumer started for queue {queue_name!r}.")
+            reconnect_delay_seconds = 1.0
+            channel.start_consuming()
+        except Exception as error:
+            print(
+                f"[Broker] Consumer for queue {queue_name!r} disconnected: "
+                f"{type(error).__name__}: {error}. "
+                f"Reconnecting in {reconnect_delay_seconds:.1f}s."
+            )
+            time.sleep(reconnect_delay_seconds)
+            reconnect_delay_seconds = min(reconnect_delay_seconds * 2, 30.0)
+        finally:
+            if connection is not None and connection.is_open:
+                connection.close()
 
 def publish_training_requested(
     batch_id: int | None,
@@ -130,6 +152,22 @@ def publish_training_requested(
             batch_id=batch_id,
             dataset_version=dataset_version,
             job_id=job_id,
+        ),
+    )
+
+
+def publish_data_ingested(
+    batch_id: int,
+    dataset_version: str,
+    client_id: str | None = None,
+) -> None:
+    publish_message(
+        DATA_INGESTED_QUEUE,
+        _build_message(
+            "data_ingested",
+            batch_id=batch_id,
+            dataset_version=dataset_version,
+            client_id=client_id,
         ),
     )
 

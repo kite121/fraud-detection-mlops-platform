@@ -1,0 +1,54 @@
+Test ID: T-02
+Test Name: POST /ingest verification
+Date: 26.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify that POST /ingest accepts a CSV file, stores it in MinIO, and writes metadata to PostgreSQL.
+
+Preconditions:
+- Platform stack is running successfully.
+- Training API is available on localhost:8000.
+- A valid CSV file is available for upload.
+
+Steps performed:
+1. Opened POST /ingest in Swagger UI.
+2. Submitted a valid CSV with client_id=bank_test and dataset_version=v1.
+3. Verified the uploaded object in MinIO raw-data bucket.
+4. Verified the metadata record in PostgreSQL for the created batch_id.
+
+Expected result:
+- API returns status, batch_id, rows_count, and storage_path.
+- Uploaded file appears in MinIO raw-data bucket.
+- A matching record appears in PostgreSQL batch_metadata.
+
+Actual result:
+- POST /ingest returned status=success, batch_id=8, rows_count=1500000, and the expected storage_path.
+- The uploaded file was present in MinIO under raw-data/clients/bank_test/raw/v1/2026-04-26/.
+- PostgreSQL contained a matching batch_metadata row with id=8 and status=uploaded.
+
+Key values / IDs:
+- batch_id: 8
+- job_id:
+- model_version:
+- mlflow_run_id:
+- storage_path: s3://raw-data/clients/bank_test/raw/v1/2026-04-26/tmpg8eded4_.csv
+- model_path:
+- metrics_path:
+- reference_profile_path:
+- drift_result_path:
+
+Evidence collected:
+- outputs.txt
+- screenshots/ingest-request.png
+- screenshots/minio-raw-data.png
+- screenshots/postgres-batch-metadata.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- No errors were observed during ingest.
+- The API response, MinIO object path, and PostgreSQL record are consistent.

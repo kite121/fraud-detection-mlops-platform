@@ -10,6 +10,8 @@ from sqlalchemy import DateTime, Float, Integer, String, Text, create_engine, se
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
+from app.services.events import publish_model_deployed
+from app.services.metrics import observe_model_registered
 from app.services.tracing import get_tracer
 
 
@@ -219,6 +221,15 @@ def register_model_version(
                 f"[Registry] Registered {model_version} "
                 f"(ROC-AUC={primary_metric:.4f}, status={new_status!r})"
             )
+            observe_model_registered(new_status)
+
+            if new_status == "best":
+                publish_model_deployed(
+                    model_version=entry.model_version,
+                    primary_metric=entry.primary_metric,
+                    model_path=entry.model_path,
+                    mlflow_run_id=entry.mlflow_run_id,
+                )
 
             return RegisteredModel(
                 id=entry.id,

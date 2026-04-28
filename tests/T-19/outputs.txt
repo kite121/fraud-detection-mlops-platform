@@ -1,0 +1,47 @@
+[Commands executed]
+
+1. docker compose ps inference-service
+2. docker compose restart inference-service
+3. docker compose ps inference-service
+4. docker compose logs inference-service --tail=120
+5. POST /predict
+
+[Command outputs]
+
+Command:
+docker compose ps inference-service
+docker compose restart inference-service
+docker compose ps inference-service
+
+Output:
+- Before restart: inference-service status was Up 22 minutes.
+- Restart command completed successfully.
+- After restart: inference-service status was Up 2 seconds.
+
+
+Command:
+docker compose logs inference-service --tail=120
+
+Output:
+- inference-service shut down cleanly:
+  - Shutting down
+  - Waiting for application shutdown.
+  - Application shutdown complete.
+  - Finished server process [1]
+  - [DB] The database connection is closed.
+- inference-service started again successfully:
+  - Started server process [1]
+  - Waiting for application startup.
+  - Application startup complete.
+  - Uvicorn running on http://0.0.0.0:8000
+
+
+Command:
+POST http://localhost:8001/predict
+
+Output:
+{
+  "prediction": 0,
+  "fraud_score": 0.2844684507286889,
+  "model_version": "v003"
+}

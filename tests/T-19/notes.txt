@@ -1,0 +1,53 @@
+Test ID: T-19
+Test Name: Fault tolerance - restart inference-service
+Date: 27.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify that after restarting inference-service, the service comes back up successfully and continues to serve predictions using the active model.
+
+Preconditions:
+- The platform is running in Docker.
+- inference-service is healthy before restart.
+- A current best/active model is already available for inference (v003).
+
+Steps performed:
+1. Checked inference-service status, then restarted inference-service with docker compose restart.
+2. Verified from logs that the service shut down cleanly and started again successfully.
+3. Executed POST /predict after restart and confirmed that inference still worked with the expected model version.
+
+Expected result:
+- inference-service restarts successfully.
+- The service comes back up without model-loading errors.
+- POST /predict after restart returns a successful response with a valid model_version.
+
+Actual result:
+- inference-service was running before restart and returned to Up state after restart.
+- Logs showed orderly shutdown and successful startup of the FastAPI/Uvicorn app.
+- POST /predict after restart returned a valid prediction response with model_version v003.
+
+Key values / IDs:
+- batch_id:
+- job_id:
+- model_version: v003
+- mlflow_run_id:
+- storage_path:
+- model_path:
+- metrics_path:
+- reference_profile_path:
+- drift_result_path:
+
+Evidence collected:
+- outputs.txt
+- screenshots/inference-restart-sequence.png
+- screenshots/inference-restart-logs.png
+- screenshots/inference-post-restart-predict.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- The captured logs mostly contained Prometheus /metrics requests around the restart window, but they also clearly showed clean shutdown and successful application startup.
+- The successful post-restart predict response is the strongest functional proof that inference-service recovered correctly.

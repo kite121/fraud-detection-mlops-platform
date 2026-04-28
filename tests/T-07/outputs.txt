@@ -1,0 +1,34 @@
+[Commands executed]
+
+1. POST /reload via Inference API Swagger UI.
+2. POST /predict via Inference API Swagger UI.
+
+[Command outputs]
+
+Command:
+POST /reload
+
+Output:
+{
+  "status": "reloaded",
+  "model_version": "v001",
+  "message": "Now serving model 'v001'."
+}
+
+
+Command:
+POST /predict
+
+Output:
+{
+  "prediction": 0,
+  "fraud_score": 0.002369464200783097,
+  "model_version": "v001"
+}
+
+
+Command:
+Inference deployment observation
+
+Output:
+The inference-service reloaded successfully and used the same deployed model version (v001) when returning the prediction response.

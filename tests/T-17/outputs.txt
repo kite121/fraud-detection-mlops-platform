@@ -1,0 +1,79 @@
+[Commands executed]
+
+1. Queried PostgreSQL for batch_metadata, training_jobs, and model_registry
+2. Verified the corresponding MLflow run
+3. Verified MinIO model artifacts
+4. Queried GET /jobs/train_fcee91c3099e
+
+[Command outputs]
+
+Command:
+docker exec postgres psql -U mlops_user -d mlops_db -c "SELECT id, client_id, dataset_version, file_name, storage_path, rows_count, status, created_at FROM batch_metadata WHERE id = 11;"
+
+Output:
+id=11
+client_id=bank_wrong_test
+dataset_version=v1
+file_name=degraded_batch.csv
+storage_path=s3://raw-data/clients/bank_wrong_test/raw/v1/2026-04-27/tmp95u_a5ak.csv
+rows_count=120000
+status=uploaded
+created_at=2026-04-27 11:48:30.643822+00
+
+
+Command:
+docker exec postgres psql -U mlops_user -d mlops_db -c "SELECT job_id, job_type, batch_id, dataset_version, celery_task_id, status, created_at, started_at, finished_at, model_version, mlflow_run_id FROM training_jobs WHERE job_id = 'train_fcee91c3099e';"
+
+Output:
+job_id=train_fcee91c3099e
+job_type=retraining
+batch_id=11
+dataset_version=v1
+celery_task_id=12960633-c31e-4fe3-9789-ed484728c949
+status=completed
+created_at=2026-04-27 11:48:33.932707+00
+started_at=2026-04-27 11:48:34.054459+00
+finished_at=2026-04-27 11:48:45.580605+00
+model_version=v003
+mlflow_run_id=09ef4a955dd84efa9f73fd2da2676b7e
+
+
+Command:
+docker exec postgres psql -U mlops_user -d mlops_db -c "SELECT model_version, dataset_version, training_batch_id, primary_metric, status, model_path, metrics_path, mlflow_run_id, model_uri, created_at FROM model_registry WHERE model_version = 'v003';"
+
+Output:
+model_version=v003
+dataset_version=v1
+training_batch_id=11
+primary_metric=0.9999999999999999
+status=best
+model_path=s3://models/models/v003/model.joblib
+metrics_path=s3://models/models/v003/metrics.json
+mlflow_run_id=09ef4a955dd84efa9f73fd2da2676b7e
+model_uri=runs:/09ef4a955dd84efa9f73fd2da2676b7e/catboost-model
+created_at=2026-04-27 11:48:45.493272+00
+
+
+Command:
+MLflow and MinIO verification
+
+Output:
+- MLflow run 09ef4a955dd84efa9f73fd2da2676b7e exists in experiment fraud-detection-training.
+- MLflow run contains metrics and retraining metadata.
+- MinIO contains models/v003/model.joblib
+- MinIO contains models/v003/metrics.json
+- MinIO contains models/v003/preprocessor.joblib
+
+
+Command:
+GET http://localhost:8000/jobs/train_fcee91c3099e
+
+Output:
+job_id=train_fcee91c3099e
+job_type=retraining
+dataset_version=v1
+batch_id=11
+celery_task_id=12960633-c31e-4fe3-9789-ed484728c949
+status=completed
+model_version=v003
+mlflow_run_id=09ef4a955dd84efa9f73fd2da2676b7e

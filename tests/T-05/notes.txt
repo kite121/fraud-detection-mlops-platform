@@ -1,0 +1,51 @@
+Test ID: T-05
+Test Name: Worker-based training execution verification
+Date: 26.04.26
+Tester: Amir Valeev
+Branch: fixed_final_branch
+Environment: Local (Windows 11)
+
+Goal:
+- Verify that the training job is executed by worker-service separately from the API service.
+
+Preconditions:
+- Platform stack is running successfully.
+- A training job has already been submitted through POST /train.
+- job_id train_dcc0e0ceb95b is available from previous tests.
+
+Steps performed:
+1. Submitted a training job through the Training API.
+2. Opened worker-service logs using docker compose logs worker-service --since=17m.
+3. Inspected the logs for task receipt, pipeline execution, artifact handling, and task completion.
+
+Expected result:
+- Training execution is visible in worker-service logs.
+- Logs show that the worker receives and processes the Celery task independently from the API.
+- The task completes successfully.
+
+Actual result:
+- worker-service received task workers.training_worker.train_model_task.
+- Logs showed training pipeline activity, artifact uploads, registry registration, RabbitMQ communication, and successful task completion.
+- The task completed successfully in approximately 53 seconds.
+
+Key values / IDs:
+- batch_id: 8
+- job_id: train_dcc0e0ceb95b
+- model_version: v002
+- mlflow_run_id:
+- storage_path:
+- model_path:
+- metrics_path:
+- reference_profile_path:
+- drift_result_path:
+
+Evidence collected:
+- outputs.txt
+- screenshots/worker-training-logs.png
+
+Status:
+- PASS
+
+Notes / Issues:
+- Non-critical warnings related to Git import and sklearn logging were present, but they did not prevent training completion.
+- The logs confirm that heavy training work was executed in worker-service, not in the API container.
