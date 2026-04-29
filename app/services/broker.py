@@ -36,13 +36,26 @@ def declare_queue(channel: pika.adapters.blocking_connection.BlockingChannel, qu
 
 
 def ensure_required_queues() -> None:
-    connection = get_connection()
-    try:
-        channel = connection.channel()
-        for queue_name in REQUIRED_QUEUES:
-            declare_queue(channel, queue_name)
-    finally:
-        connection.close()
+    import time
+    max_attempts = 10
+    delay = 3  # seconds between attempts
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            connection = get_connection()
+            try:
+                channel = connection.channel()
+                for queue_name in REQUIRED_QUEUES:
+                    declare_queue(channel, queue_name)
+                print("[Broker] Required queues declared successfully.")
+                return
+            finally:
+                connection.close()
+        except Exception as exc:
+            print(f"[Broker] RabbitMQ not ready (attempt {attempt}/{max_attempts}): {exc}")
+            if attempt == max_attempts:
+                raise
+            time.sleep(delay)
 
 
 def _build_message(event_type: str, **payload: Any) -> dict[str, Any]:

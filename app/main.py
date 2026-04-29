@@ -33,10 +33,12 @@ async def lifespan(app: FastAPI):
     elif app_role == "inference":
         try:
             load_best_model()
-            start_model_deploy_listener()
             print("[Inference] Best model loaded.")
         except Exception as error:
             print(f"[Inference] Model is not ready yet: {error}")
+
+        start_model_deploy_listener()
+        print("[Inference] Model deploy listener started.")
 
     yield
 
